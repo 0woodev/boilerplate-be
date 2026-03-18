@@ -13,26 +13,18 @@ permissions:
   id-token: write
   contents: read
 
-env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
-  PROJECT_NAME: ${{ vars.PROJECT_NAME }}
-
 jobs:
   apply:
     runs-on: ubuntu-latest
+    # dev 브랜치 → dev 환경 변수, main → prod 환경 변수 자동 참조
+    environment: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      PROJECT_NAME: ${{ vars.PROJECT_NAME }}
+      STAGE: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
 
     steps:
       - uses: actions/checkout@v4
-
-      # push된 브랜치 기준으로 stage 결정
-      # dev → stage=dev / main → stage=prod
-      - name: Set stage
-        run: |
-          if [[ "${{ github.ref_name }}" == "main" ]]; then
-            echo "STAGE=prod" >> $GITHUB_ENV
-          else
-            echo "STAGE=${{ github.ref_name }}" >> $GITHUB_ENV
-          fi
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
