@@ -1,5 +1,7 @@
 # Build artifacts
 .build/
+*.sha
+*.sha.tmp
 
 # Python
 __pycache__/
