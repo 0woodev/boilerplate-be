@@ -16,9 +16,5 @@ terraform/*.tfstate
 terraform/*.tfstate.backup
 terraform/.terraform.lock.hcl
 
-# Environment (actual values, not sample)
-project_env/dev.env
-project_env/prod.env
-
 # macOS
 .DS_Store
