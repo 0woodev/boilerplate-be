@@ -27,3 +27,8 @@ variable "fe_domain" {
   description = "프론트엔드 도메인 (CORS 허용 origin). ex) https://my-app.com"
   type        = string
 }
+
+variable "tf_state_bucket" {
+  description = "Terraform 상태 저장 S3 버킷명. dev.env의 TF_STATE_BUCKET과 동일해야 함"
+  type        = string
+}
