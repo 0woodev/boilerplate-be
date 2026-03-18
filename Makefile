@@ -24,7 +24,7 @@ set -a && source $(CONFIG_FILE) && set +a && \
   TF_VARS="-var=stage=$(STAGE) -var=project_name=$$PROJECT_NAME -var=aws_region=$$AWS_REGION -var=aws_account_id=$$AWS_ACCOUNT_ID -var=github_owner=$$GITHUB_OWNER -var=fe_domain=https://$$FE_DOMAIN"
 endef
 
-.PHONY: all zip-src-all zip-layer-all zip-common-src-all diff-all clean-all clean-src clean-layer clean-common setup local api tf-global tf-init tf-plan tf-apply
+.PHONY: all zip-src-all zip-layer-all zip-common-src-all diff-all clean-all clean-src clean-layer clean-common setup local api tf-global tf-init tf-plan tf-apply gh-setup
 
 # Lambda 핸들러 디렉토리: app/api/{domain}/api_*
 ZIP_TARGET_DIRS := $(shell find app/api -mindepth 3 -maxdepth 3 -type d -name "api_*" 2>/dev/null)
@@ -280,3 +280,25 @@ tf-apply: tf-init
 		-var="aws_account_id=$$AWS_ACCOUNT_ID" \
 		-var="github_owner=$$GITHUB_OWNER" \
 		-var="fe_domain=https://$$FE_DOMAIN"
+
+# ──────────────────────────────────────────────────────────────
+# GitHub 설정 (gh CLI)
+# config.env 값을 읽어 GitHub Environment + Variables 일괄 등록
+#
+# Usage:
+#   make gh-setup              # dev 환경 설정
+#   make gh-setup STAGE=prod   # prod 환경 설정
+# ──────────────────────────────────────────────────────────────
+gh-setup:
+	@set -a && source $(CONFIG_FILE) && set +a && \
+	REPO="$$GITHUB_OWNER/$$PROJECT_NAME-be" && \
+	echo "🔧 Creating GitHub Environment: $(STAGE) ($$REPO)" && \
+	gh api repos/$$REPO/environments/$(STAGE) -X PUT --silent && \
+	echo "📦 Setting variables for environment: $(STAGE)" && \
+	gh variable set PROJECT_NAME   --env $(STAGE) --repo $$REPO --body "$$PROJECT_NAME" && \
+	gh variable set AWS_REGION     --env $(STAGE) --repo $$REPO --body "$$AWS_REGION" && \
+	gh variable set AWS_ACCOUNT_ID --env $(STAGE) --repo $$REPO --body "$$AWS_ACCOUNT_ID" && \
+	gh variable set GITHUB_OWNER   --env $(STAGE) --repo $$REPO --body "$$GITHUB_OWNER" && \
+	gh variable set TF_STATE_BUCKET --env $(STAGE) --repo $$REPO --body "$$TF_STATE_BUCKET" && \
+	gh variable set FE_DOMAIN      --env $(STAGE) --repo $$REPO --body "$$FE_DOMAIN" && \
+	echo "✅ Done. Environment '$(STAGE)' configured for $$REPO"
