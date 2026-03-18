@@ -46,16 +46,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Build Lambda Layer
-        run: |
-          mkdir -p .build/layer/python
-          pip install -r requirements.txt -t .build/layer/python
-          cd .build/layer && zip -r ../layer.zip python
-
-      - name: Build Lambda zips
-        run: |
-          mkdir -p .build
-          cd app && zip -r ../.build/user.zip .
+      - name: Build (Lambda zips + Layers)
+        run: make all
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
