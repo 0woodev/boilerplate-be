@@ -26,7 +26,8 @@ TF_VAR_ARGS=(
   -var="aws_region=$AWS_REGION"
   -var="aws_account_id=$AWS_ACCOUNT_ID"
   -var="github_owner=$GITHUB_OWNER"
-  -var="fe_domain=https://$FE_DOMAIN"
+  -var="tf_state_bucket=$TF_STATE_BUCKET"
+  -var="fe_domain=$FE_DOMAIN"
 )
 
 case "$COMMAND" in

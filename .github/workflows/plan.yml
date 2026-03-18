@@ -64,7 +64,8 @@ jobs:
             -var="aws_region=${{ vars.AWS_REGION }}" \
             -var="aws_account_id=${{ vars.AWS_ACCOUNT_ID }}" \
             -var="github_owner=${{ vars.GITHUB_OWNER }}" \
-            -var="fe_domain=https://${{ vars.FE_DOMAIN }}" \
+            -var="tf_state_bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -var="fe_domain=${{ vars.FE_DOMAIN }}" \
             -no-color 2>&1 | tee plan.txt
         continue-on-error: true
 
