@@ -10,11 +10,7 @@ PIP      := $(VENV)/bin/pip
 # config: boilerplate-app/config.env (서브모듈 기준 상위 디렉토리)
 # ──────────────────────────────────────────────────────────────
 STAGE       ?= dev
-ifeq ($(STAGE),dev)
-  CONFIG_FILE ?= ../config.env
-else
-  CONFIG_FILE ?= ../config.$(STAGE).env
-endif
+CONFIG_FILE ?= ../$(STAGE).env
 
 # config 파일에서 변수를 읽어 terraform -var 플래그 조합
 # bash의 variable expansion (TF_STATE_BUCKET="${GITHUB_OWNER}-...") 처리를 위해
