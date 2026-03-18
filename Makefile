@@ -1,10 +1,30 @@
 PROJECT_ROOT := $(shell pwd)
 
-VENV := .venv
-PYTHON := $(VENV)/bin/python
-PIP := $(VENV)/bin/pip
+VENV     := .venv
+PYTHON   := $(VENV)/bin/python
+PIP      := $(VENV)/bin/pip
 
-.PHONY: all zip-src-all zip-layer-all zip-common-src-all diff-all clean-all clean-src clean-layer clean-common setup local api
+# ──────────────────────────────────────────────────────────────
+# Terraform 설정
+# stage: dev(기본) / prod
+# config: boilerplate-app/config.env (서브모듈 기준 상위 디렉토리)
+# ──────────────────────────────────────────────────────────────
+STAGE       ?= dev
+ifeq ($(STAGE),dev)
+  CONFIG_FILE ?= ../config.env
+else
+  CONFIG_FILE ?= ../config.$(STAGE).env
+endif
+
+# config 파일에서 변수를 읽어 terraform -var 플래그 조합
+# bash의 variable expansion (TF_STATE_BUCKET="${GITHUB_OWNER}-...") 처리를 위해
+# Makefile include 대신 shell source 방식 사용
+define tf_vars
+set -a && source $(CONFIG_FILE) && set +a && \
+  TF_VARS="-var=stage=$(STAGE) -var=project_name=$$PROJECT_NAME -var=aws_region=$$AWS_REGION -var=aws_account_id=$$AWS_ACCOUNT_ID -var=github_owner=$$GITHUB_OWNER -var=fe_domain=https://$$FE_DOMAIN"
+endef
+
+.PHONY: all zip-src-all zip-layer-all zip-common-src-all diff-all clean-all clean-src clean-layer clean-common setup local api tf-global tf-init tf-plan tf-apply
 
 # Lambda 핸들러 디렉토리: app/api/{domain}/api_*
 ZIP_TARGET_DIRS := $(shell find app/api -mindepth 3 -maxdepth 3 -type d -name "api_*" 2>/dev/null)
@@ -211,3 +231,52 @@ clean-layer:
 clean-common:
 	@rm -rf "$(PROJECT_ROOT)/.build/common"
 	@echo "🧹 Cleaned common"
+
+# ──────────────────────────────────────────────────────────────
+# Terraform (로컬 실행 전용)
+# config.env 경로: 서브모듈 기준 ../config.env (boilerplate-app 루트)
+#
+# Usage:
+#   make tf-global              # OIDC provider 최초 생성 (1회)
+#   make tf-init                # terraform init (state 연결)
+#   make tf-plan                # terraform plan
+#   make tf-apply               # terraform apply
+#   make tf-plan  STAGE=prod    # prod 환경
+# ──────────────────────────────────────────────────────────────
+tf-global:
+	@set -a && source $(CONFIG_FILE) && set +a && \
+	cd terraform/global && terraform init \
+		-backend-config="bucket=$$TF_STATE_BUCKET" \
+		-backend-config="key=$$PROJECT_NAME/global.tfstate" \
+		-backend-config="region=$$AWS_REGION" \
+		-backend-config="dynamodb_table=$$PROJECT_NAME-tf-lock" && \
+	terraform apply -auto-approve \
+		-var="aws_region=$$AWS_REGION"
+
+tf-init:
+	@set -a && source $(CONFIG_FILE) && set +a && \
+	cd terraform && terraform init \
+		-backend-config="bucket=$$TF_STATE_BUCKET" \
+		-backend-config="key=$$PROJECT_NAME/$(STAGE)/terraform.tfstate" \
+		-backend-config="region=$$AWS_REGION" \
+		-backend-config="dynamodb_table=$$PROJECT_NAME-tf-lock"
+
+tf-plan: tf-init
+	@set -a && source $(CONFIG_FILE) && set +a && \
+	cd terraform && terraform plan \
+		-var="stage=$(STAGE)" \
+		-var="project_name=$$PROJECT_NAME" \
+		-var="aws_region=$$AWS_REGION" \
+		-var="aws_account_id=$$AWS_ACCOUNT_ID" \
+		-var="github_owner=$$GITHUB_OWNER" \
+		-var="fe_domain=https://$$FE_DOMAIN"
+
+tf-apply: tf-init
+	@set -a && source $(CONFIG_FILE) && set +a && \
+	cd terraform && terraform apply -auto-approve \
+		-var="stage=$(STAGE)" \
+		-var="project_name=$$PROJECT_NAME" \
+		-var="aws_region=$$AWS_REGION" \
+		-var="aws_account_id=$$AWS_ACCOUNT_ID" \
+		-var="github_owner=$$GITHUB_OWNER" \
+		-var="fe_domain=https://$$FE_DOMAIN"

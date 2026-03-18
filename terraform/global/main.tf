@@ -9,12 +9,10 @@ terraform {
   }
 
   # global 리소스는 별도 state로 관리 (stage 무관, 계정당 1회)
+  # bucket, key, region, dynamodb_table은 -backend-config 로 주입
+  # 로컬: make tf-global / CI: global.yml 워크플로우
   backend "s3" {
-    bucket         = "{{TF_STATE_BUCKET}}"
-    key            = "{{PROJECT_NAME}}/global.tfstate"
-    region         = "{{AWS_REGION}}"
-    dynamodb_table = "{{PROJECT_NAME}}-tf-lock"
-    encrypt        = true
+    encrypt = true
   }
 }
 

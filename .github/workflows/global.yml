@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: {{AWS_REGION}}
+  AWS_REGION: ${{ vars.AWS_REGION }}
 
 jobs:
   apply-global:
@@ -32,12 +32,21 @@ jobs:
 
       - name: Terraform Init (global)
         working-directory: terraform/global
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=${{ vars.PROJECT_NAME }}/global.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ vars.PROJECT_NAME }}-tf-lock"
 
       - name: Terraform Plan (global)
         working-directory: terraform/global
-        run: terraform plan -no-color
+        run: |
+          terraform plan -no-color \
+            -var="aws_region=${{ vars.AWS_REGION }}"
 
       - name: Terraform Apply (global)
         working-directory: terraform/global
-        run: terraform apply -auto-approve
+        run: |
+          terraform apply -auto-approve \
+            -var="aws_region=${{ vars.AWS_REGION }}"

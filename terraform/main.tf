@@ -10,11 +10,10 @@ terraform {
 
   # key는 CI에서 -backend-config="key=..." 로 동적 주입 (stage별 분리)
   # ex) {{PROJECT_NAME}}/dev/terraform.tfstate
+  # bucket, key, region, dynamodb_table은 -backend-config 로 주입
+  # 로컬: make tf-init / CI: workflow에서 -backend-config 플래그로 전달
   backend "s3" {
-    bucket         = "{{TF_STATE_BUCKET}}"
-    region         = "{{AWS_REGION}}"
-    dynamodb_table = "{{PROJECT_NAME}}-tf-lock"
-    encrypt        = true
+    encrypt = true
   }
 }
 
@@ -77,7 +76,7 @@ resource "aws_iam_role" "github_actions" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_owner}/{{PROJECT_NAME}}-be:*"
+          "token.actions.githubusercontent.com:sub" = "repo:${var.github_owner}/${var.project_name}-be:*"
         }
       }
     }]
@@ -96,7 +95,7 @@ resource "aws_iam_role_policy" "github_actions" {
       {
         Effect   = "Allow"
         Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
-        Resource = ["arn:aws:s3:::{{TF_STATE_BUCKET}}", "arn:aws:s3:::{{TF_STATE_BUCKET}}/*"]
+        Resource = ["arn:aws:s3:::${var.github_owner}-${var.project_name}-tf-state", "arn:aws:s3:::${var.github_owner}-${var.project_name}-tf-state/*"]
       },
       {
         Effect   = "Allow"
