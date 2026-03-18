@@ -1,0 +1,43 @@
+name: Terraform Global (One-time Setup)
+
+# 계정당 1회만 실행 (GitHub Actions OIDC provider 생성)
+# 이후 plan/apply workflow가 OIDC 인증을 사용할 수 있게 됨
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: {{AWS_REGION}}
+
+jobs:
+  apply-global:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # global은 OIDC 생성 전이므로 정적 Access Key 사용
+      - name: Configure AWS credentials (Access Key)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init (global)
+        working-directory: terraform/global
+        run: terraform init
+
+      - name: Terraform Plan (global)
+        working-directory: terraform/global
+        run: terraform plan -no-color
+
+      - name: Terraform Apply (global)
+        working-directory: terraform/global
+        run: terraform apply -auto-approve
