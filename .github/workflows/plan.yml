@@ -1,0 +1,103 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'terraform/**'
+      - 'app/**'
+      - 'common/**'
+      - 'requirements.txt'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: {{AWS_REGION}}
+  PROJECT_NAME: {{PROJECT_NAME}}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # PR 대상 브랜치 기준으로 stage 결정
+      # dev → stage=dev / main → stage=prod
+      - name: Set stage
+        run: |
+          if [[ "${{ github.base_ref }}" == "main" ]]; then
+            echo "STAGE=prod" >> $GITHUB_ENV
+          else
+            echo "STAGE=${{ github.base_ref }}" >> $GITHUB_ENV
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::{{AWS_ACCOUNT_ID}}:role/${{ env.PROJECT_NAME }}-${{ env.STAGE }}-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build Lambda Layer
+        run: |
+          mkdir -p .build/layer/python
+          pip install -r requirements.txt -t .build/layer/python
+          cd .build/layer && zip -r ../layer.zip python
+
+      - name: Build Lambda zips
+        run: |
+          mkdir -p .build
+          cd app && zip -r ../.build/user.zip .
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="key=${{ env.PROJECT_NAME }}/${{ env.STAGE }}/terraform.tfstate"
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: terraform
+        run: |
+          terraform plan \
+            -var="stage=${{ env.STAGE }}" \
+            -no-color 2>&1 | tee plan.txt
+        continue-on-error: true
+
+      - name: Comment Plan on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/plan.txt', 'utf8');
+            const status = '${{ steps.plan.outcome }}' === 'success' ? '✅' : '❌';
+            const body = [
+              `## Terraform Plan ${status} — \`${{ env.STAGE }}\``,
+              '<details><summary>Show Plan</summary>',
+              '',
+              '```',
+              plan.slice(0, 60000),
+              '```',
+              '</details>'
+            ].join('\n');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+
+      - name: Fail if plan failed
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
