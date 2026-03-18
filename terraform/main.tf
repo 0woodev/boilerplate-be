@@ -8,9 +8,10 @@ terraform {
     }
   }
 
+  # key는 CI에서 -backend-config="key=..." 로 동적 주입 (stage별 분리)
+  # ex) {{PROJECT_NAME}}/dev/terraform.tfstate
   backend "s3" {
     bucket         = "{{TF_STATE_BUCKET}}"
-    key            = "{{PROJECT_NAME}}/{{STAGE}}/terraform.tfstate"  # stage별 state 분리 (setup.sh에서 치환)
     region         = "{{AWS_REGION}}"
     dynamodb_table = "{{PROJECT_NAME}}-tf-lock"
     encrypt        = true
