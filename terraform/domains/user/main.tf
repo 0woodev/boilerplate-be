@@ -13,8 +13,8 @@ locals {
   # handler:  "handler.handler" 고정 (zip 내 handler.py의 handler 함수)
   # ──────────────────────────────────────────────────────────────
   lambdas = {
-    api_post_create_user = {
-      zip_path          = "${path.module}/../../../.build/app/api/user/api_post_create_user/build.zip"
+    api_post_user = {
+      zip_path          = "${path.module}/../../../.build/app/api/user/api_post_user/build.zip"
       handler           = "handler.handler"
       api_gateway_route = "POST /users"
       environment_variables = {
@@ -31,10 +31,10 @@ locals {
       }
     }
 
-    # api_put_update_user = {
-    #   zip_path          = "${path.module}/../../../.build/app/api/user/api_put_update_user/build.zip"
+    # api_put_user = {
+    #   zip_path          = "${path.module}/../../../.build/app/api/user/api_put_user/build.zip"
     #   handler           = "handler.handler"
-    #   api_gateway_route = "PUT /users/{id}"
+    #   api_gateway_route = "PUT /users/{user_id}"
     #   environment_variables = {
     #     TABLE_NAME = local.table_name.users
     #   }
@@ -43,20 +43,20 @@ locals {
     # api_delete_user = {
     #   zip_path          = "${path.module}/../../../.build/app/api/user/api_delete_user/build.zip"
     #   handler           = "handler.handler"
-    #   api_gateway_route = "DELETE /users/{id}"
+    #   api_gateway_route = "DELETE /users/{user_id}"
     #   environment_variables = {
     #     TABLE_NAME = local.table_name.users
     #   }
     # }
 
-    # api_get_list_users = {
-    #   zip_path          = "${path.module}/../../../.build/app/api/user/api_get_list_users/build.zip"
-    #   handler           = "handler.handler"
-    #   api_gateway_route = "GET /users"
-    #   environment_variables = {
-    #     TABLE_NAME = local.table_name.users
-    #   }
-    # }
+    api_get_users = {
+      zip_path          = "${path.module}/../../../.build/app/api/user/api_get_users/build.zip"
+      handler           = "handler.handler"
+      api_gateway_route = "GET /users"
+      environment_variables = {
+        TABLE_NAME = local.table_name.users
+      }
+    }
   }
 }
 
