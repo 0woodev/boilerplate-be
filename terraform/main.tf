@@ -23,13 +23,23 @@ provider "aws" {
 }
 
 # ============================================================
-# Common Lambda Layer (공통 Python 의존성)
+# Lambda Layers
 # ============================================================
+
+# requirements.txt 의존성 Layer (make zip-layer-all 로 빌드)
+resource "aws_lambda_layer_version" "requirements" {
+  filename            = "${path.module}/../.build/layer/layer.zip"
+  layer_name          = "${var.project_name}-${var.stage}-requirements"
+  compatible_runtimes = ["python3.12"]
+  source_code_hash    = filebase64sha256("${path.module}/../.build/layer/layer.zip")
+}
+
+# 공통 코드 Layer (common/ → make zip-common-src-all 로 빌드)
 resource "aws_lambda_layer_version" "common" {
-  filename            = "${path.module}/../.build/layer.zip"
+  filename            = "${path.module}/../.build/common/layer.zip"
   layer_name          = "${var.project_name}-${var.stage}-common"
   compatible_runtimes = ["python3.12"]
-  source_code_hash    = filebase64sha256("${path.module}/../.build/layer.zip")
+  source_code_hash    = filebase64sha256("${path.module}/../.build/common/layer.zip")
 }
 
 # ============================================================
@@ -126,7 +136,7 @@ module "user_domain" {
 
   api_gateway_id            = module.api_gateway.id
   api_gateway_execution_arn = module.api_gateway.execution_arn
-  common_layer_arns         = [aws_lambda_layer_version.common.arn]
+  common_layer_arns         = [aws_lambda_layer_version.requirements.arn, aws_lambda_layer_version.common.arn]
 }
 
 # 새 도메인 추가 시 여기에 module 블록만 추가
@@ -136,5 +146,5 @@ module "user_domain" {
 #   stage        = var.stage
 #   api_gateway_id            = module.api_gateway.id
 #   api_gateway_execution_arn = module.api_gateway.execution_arn
-#   common_layer_arns         = [aws_lambda_layer_version.common.arn]
+#   common_layer_arns         = [aws_lambda_layer_version.requirements.arn, aws_lambda_layer_version.common.arn]
 # }

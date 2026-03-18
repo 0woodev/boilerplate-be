@@ -1,6 +1,4 @@
 locals {
-  zip_path = "${path.module}/../../../.build/user.zip"
-
   # 네이밍 컨벤션: {project_name}-{stage}-{table_key}
   # IAM은 modules/lambda에서 {project_name}* 와일드카드로 처리되므로 ARN 불필요
   table_name = {
@@ -11,52 +9,54 @@ locals {
   # Lambda 목록
   # 새 API 추가 시 여기에 항목만 추가하면 됩니다.
   #
-  # 필수: handler, api_gateway_route
-  # 선택(미입력 시 모듈 기본값 적용):
-  #   memory_size, timeout, environment_variables, layer_arns,
-  #   reserved_concurrent_executions, dead_letter_target_arn, log_retention_days
+  # zip_path: make zip-src-all 로 빌드된 경로 (endpoint별 개별 zip)
+  # handler:  "handler.handler" 고정 (zip 내 handler.py의 handler 함수)
   # ──────────────────────────────────────────────────────────────
   lambdas = {
-    create_user = {
-      handler           = "app.lambdas.user.create_user.handler"
-      memory_size       = 256
+    api_post_create_user = {
+      zip_path          = "${path.module}/../../../.build/app/api/user/api_post_create_user/build.zip"
+      handler           = "handler.handler"
       api_gateway_route = "POST /users"
       environment_variables = {
         TABLE_NAME = local.table_name.users
       }
     }
 
-    get_user = {
-      handler           = "app.lambdas.user.get_user.handler"
-      api_gateway_route = "GET /users/{id}"
+    api_get_user = {
+      zip_path          = "${path.module}/../../../.build/app/api/user/api_get_user/build.zip"
+      handler           = "handler.handler"
+      api_gateway_route = "GET /users/{user_id}"
       environment_variables = {
         TABLE_NAME = local.table_name.users
       }
     }
 
-    update_user = {
-      handler           = "app.lambdas.user.update_user.handler"
-      api_gateway_route = "PUT /users/{id}"
-      environment_variables = {
-        TABLE_NAME = local.table_name.users
-      }
-    }
+    # api_put_update_user = {
+    #   zip_path          = "${path.module}/../../../.build/app/api/user/api_put_update_user/build.zip"
+    #   handler           = "handler.handler"
+    #   api_gateway_route = "PUT /users/{id}"
+    #   environment_variables = {
+    #     TABLE_NAME = local.table_name.users
+    #   }
+    # }
 
-    delete_user = {
-      handler           = "app.lambdas.user.delete_user.handler"
-      api_gateway_route = "DELETE /users/{id}"
-      environment_variables = {
-        TABLE_NAME = local.table_name.users
-      }
-    }
+    # api_delete_user = {
+    #   zip_path          = "${path.module}/../../../.build/app/api/user/api_delete_user/build.zip"
+    #   handler           = "handler.handler"
+    #   api_gateway_route = "DELETE /users/{id}"
+    #   environment_variables = {
+    #     TABLE_NAME = local.table_name.users
+    #   }
+    # }
 
-    list_users = {
-      handler           = "app.lambdas.user.list_users.handler"
-      api_gateway_route = "GET /users"
-      environment_variables = {
-        TABLE_NAME = local.table_name.users
-      }
-    }
+    # api_get_list_users = {
+    #   zip_path          = "${path.module}/../../../.build/app/api/user/api_get_list_users/build.zip"
+    #   handler           = "handler.handler"
+    #   api_gateway_route = "GET /users"
+    #   environment_variables = {
+    #     TABLE_NAME = local.table_name.users
+    #   }
+    # }
   }
 }
 
@@ -68,7 +68,7 @@ module "lambda" {
   stage        = var.stage
   name         = each.key
 
-  zip_path    = local.zip_path
+  zip_path    = each.value.zip_path
   handler     = each.value.handler
   memory_size = try(each.value.memory_size, 128)
   timeout     = try(each.value.timeout, 30)
