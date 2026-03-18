@@ -25,7 +25,7 @@ case "$COMMAND" in
     gh variable set PROJECT_NAME    --env "$STAGE" --repo "$REPO" --body "$PROJECT_NAME"
     gh variable set AWS_REGION      --env "$STAGE" --repo "$REPO" --body "$AWS_REGION"
     gh variable set AWS_ACCOUNT_ID  --env "$STAGE" --repo "$REPO" --body "$AWS_ACCOUNT_ID"
-    gh variable set GITHUB_OWNER    --env "$STAGE" --repo "$REPO" --body "$GITHUB_OWNER"
+    gh variable set GH_OWNER        --env "$STAGE" --repo "$REPO" --body "$GITHUB_OWNER"
     gh variable set TF_STATE_BUCKET --env "$STAGE" --repo "$REPO" --body "$TF_STATE_BUCKET"
     gh variable set FE_DOMAIN       --env "$STAGE" --repo "$REPO" --body "$FE_DOMAIN"
 

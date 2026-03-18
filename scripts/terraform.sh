@@ -25,7 +25,7 @@ TF_VAR_ARGS=(
   -var="project_name=$PROJECT_NAME"
   -var="aws_region=$AWS_REGION"
   -var="aws_account_id=$AWS_ACCOUNT_ID"
-  -var="github_owner=$GITHUB_OWNER"
+  -var="github_owner=$GH_OWNER"
   -var="tf_state_bucket=$TF_STATE_BUCKET"
   -var="fe_domain=$FE_DOMAIN"
 )

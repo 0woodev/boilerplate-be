@@ -60,6 +60,6 @@ jobs:
             -var="project_name=${{ vars.PROJECT_NAME }}" \
             -var="aws_region=${{ vars.AWS_REGION }}" \
             -var="aws_account_id=${{ vars.AWS_ACCOUNT_ID }}" \
-            -var="github_owner=${{ vars.GITHUB_OWNER }}" \
+            -var="github_owner=${{ vars.GH_OWNER }}" \
             -var="tf_state_bucket=${{ vars.TF_STATE_BUCKET }}" \
             -var="fe_domain=${{ vars.FE_DOMAIN }}"
