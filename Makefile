@@ -55,7 +55,7 @@ setup:
 	fi
 
 local:
-	FLASK_ENV=development $(PYTHON) local_server.py
+	FLASK_DEBUG=1 $(PYTHON) local_server.py
 
 # make api name=api_post_create_order [domain=order]
 api:
