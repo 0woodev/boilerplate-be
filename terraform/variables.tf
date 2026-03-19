@@ -32,3 +32,4 @@ variable "tf_state_bucket" {
   description = "Terraform 상태 저장 S3 버킷명. dev.env의 TF_STATE_BUCKET과 동일해야 함"
   type        = string
 }
+
