@@ -88,8 +88,7 @@ resource "aws_iam_role_policy" "github_actions" {
         Effect = "Allow"
         Action = [
           "lambda:*", "apigateway:*", "dynamodb:*", "sqs:*",
-          "iam:GetRole", "iam:PassRole", "iam:CreateRole", "iam:AttachRolePolicy",
-          "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:DetachRolePolicy",
+          "iam:*",
           "logs:*"
         ]
         Resource = "*"
