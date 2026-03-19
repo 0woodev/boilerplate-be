@@ -39,6 +39,15 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: .build/
+          key: build-${{ env.STAGE }}-${{ hashFiles('requirements.txt') }}-${{ github.sha }}
+          restore-keys: |
+            build-${{ env.STAGE }}-${{ hashFiles('requirements.txt') }}-
+            build-${{ env.STAGE }}-
+
       - name: Build (Lambda zips + Layers)
         run: make all
 
