@@ -18,18 +18,23 @@ REPO="$GITHUB_OWNER/$PROJECT_NAME-be"
 
 case "$COMMAND" in
   setup)
+    # ── Repository variables (stage 무관, 공통값) ──────────────
+    # 최초 1회 또는 값이 바뀔 때만 실행하면 됨
+    echo "📦 Setting repository variables ($REPO)"
+    gh variable set PROJECT_NAME    --repo "$REPO" --body "$PROJECT_NAME"
+    gh variable set GH_OWNER        --repo "$REPO" --body "$GITHUB_OWNER"
+    gh variable set AWS_REGION      --repo "$REPO" --body "$AWS_REGION"
+    gh variable set AWS_ACCOUNT_ID  --repo "$REPO" --body "$AWS_ACCOUNT_ID"
+    gh variable set TF_STATE_BUCKET --repo "$REPO" --body "$TF_STATE_BUCKET"
+
+    # ── Environment variables (stage별 다른 값) ────────────────
     echo "🔧 Creating GitHub Environment: $STAGE ($REPO)"
     gh api "repos/$REPO/environments/$STAGE" -X PUT --silent
 
-    echo "📦 Setting variables for environment: $STAGE"
-    gh variable set PROJECT_NAME    --env "$STAGE" --repo "$REPO" --body "$PROJECT_NAME"
-    gh variable set AWS_REGION      --env "$STAGE" --repo "$REPO" --body "$AWS_REGION"
-    gh variable set AWS_ACCOUNT_ID  --env "$STAGE" --repo "$REPO" --body "$AWS_ACCOUNT_ID"
-    gh variable set GH_OWNER        --env "$STAGE" --repo "$REPO" --body "$GITHUB_OWNER"
-    gh variable set TF_STATE_BUCKET --env "$STAGE" --repo "$REPO" --body "$TF_STATE_BUCKET"
-    gh variable set FE_DOMAIN       --env "$STAGE" --repo "$REPO" --body "$FE_DOMAIN"
+    echo "📦 Setting environment variables for: $STAGE"
+    gh variable set FE_DOMAIN --env "$STAGE" --repo "$REPO" --body "$FE_DOMAIN"
 
-    echo "✅ Done. Environment '$STAGE' configured for $REPO"
+    echo "✅ Done. ($REPO / env: $STAGE)"
     ;;
   *)
     echo "❌ Unknown command: $COMMAND"
