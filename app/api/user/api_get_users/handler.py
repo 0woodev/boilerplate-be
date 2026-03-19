@@ -6,4 +6,4 @@ ROUTE = ("GET", "/users")
 
 @ResponseHandler.api
 def handler(event, context):
-    return {"message": "ok", "users": []}
+    return {"message": "ok", "users": [], "total": 0}
