@@ -32,6 +32,7 @@ case "$COMMAND" in
 
     echo "📦 Setting environment variables for: $STAGE"
     gh variable set FE_DOMAIN --env "$STAGE" --repo "$REPO" --body "$FE_DOMAIN"
+    gh variable set BE_DOMAIN --env "$STAGE" --repo "$REPO" --body "$BE_DOMAIN"
 
     echo "✅ Done. ($REPO / env: $STAGE)"
     ;;
