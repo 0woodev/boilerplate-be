@@ -59,6 +59,7 @@ boilerplate-be 설계 과정에서 결정하고 구현한 내용의 체크리스
 
 ## Pending 작업 (다음 대화에서 이어서)
 
-1. **new_app_test 배포** — `boilerplate-app` 복사 후 `PROJECT_NAME=new_app_test`로 새 서비스 배포해서 보일러플레이트 검증
-2. **`/create-api` Claude skill 구현** — handler + terraform 동시 생성
-3. **커스텀 도메인 Terraform 자동화** — Route53 + ACM + API Gateway 연동
+1. **global.yml 재실행** — `servicecatalog:*` IAM 권한 반영 → dev/prod apply 재실행 → AppRegistry 콘솔 확인
+2. **new_app_test 배포** — `boilerplate-app` 복사 후 `PROJECT_NAME=new_app_test`로 새 서비스 배포해서 보일러플레이트 검증
+3. **`/create-api` Claude skill 구현** — handler + terraform 동시 생성
+4. **커스텀 도메인 Terraform 자동화** — Route53 + ACM + API Gateway 연동
