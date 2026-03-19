@@ -19,7 +19,6 @@ REPO="$GITHUB_OWNER/$PROJECT_NAME-be"
 case "$COMMAND" in
   setup)
     # ── Repository variables (stage 무관, 공통값) ──────────────
-    # 최초 1회 또는 값이 바뀔 때만 실행하면 됨
     echo "📦 Setting repository variables ($REPO)"
     gh variable set PROJECT_NAME    --repo "$REPO" --body "$PROJECT_NAME"
     gh variable set GH_OWNER        --repo "$REPO" --body "$GITHUB_OWNER"
