@@ -1,7 +1,7 @@
 locals {
   function_name = "${var.project_name}-${var.stage}-${var.name}"
   use_s3        = var.s3_bucket != null
-  has_api_route = var.api_gateway_route != null && var.api_gateway_id != null
+  has_api_route = var.api_gateway_route != null
 
   default_tags = {
     Project = var.project_name
