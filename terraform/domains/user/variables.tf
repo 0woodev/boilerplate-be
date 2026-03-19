@@ -16,3 +16,8 @@ variable "common_layer_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "tags" {
+  type    = map(string)
+  default = {}
+}

@@ -22,6 +22,30 @@ provider "aws" {
 }
 
 # ============================================================
+# AWS AppRegistry — 앱 단위 리소스 그룹핑
+# ============================================================
+resource "aws_servicecatalogappregistry_application" "app" {
+  name        = "${var.project_name}-${var.stage}"
+  description = "${var.project_name} application (${var.stage})"
+}
+
+resource "aws_servicecatalogappregistry_attribute_group" "app" {
+  name        = "${var.project_name}-${var.stage}"
+  description = "Metadata for ${var.project_name}-${var.stage}"
+  attributes = jsonencode({
+    project = var.project_name
+    stage   = var.stage
+    runtime = "python3.12"
+    type    = "serverless"
+  })
+}
+
+resource "aws_servicecatalogappregistry_attribute_group_association" "app" {
+  application_id     = aws_servicecatalogappregistry_application.app.id
+  attribute_group_id = aws_servicecatalogappregistry_attribute_group.app.id
+}
+
+# ============================================================
 # Lambda Layers
 # ============================================================
 
@@ -49,6 +73,7 @@ module "api_gateway" {
   project_name = var.project_name
   stage        = var.stage
   fe_domain    = var.fe_domain
+  tags         = aws_servicecatalogappregistry_application.app.application_tag
 }
 
 # ============================================================
@@ -58,6 +83,7 @@ module "databases" {
   source       = "./shared/databases"
   project_name = var.project_name
   stage        = var.stage
+  tags         = aws_servicecatalogappregistry_application.app.application_tag
 }
 
 # ============================================================
@@ -71,6 +97,7 @@ module "user_domain" {
   api_gateway_id            = module.api_gateway.id
   api_gateway_execution_arn = module.api_gateway.execution_arn
   common_layer_arns         = [aws_lambda_layer_version.requirements.arn, aws_lambda_layer_version.common.arn]
+  tags                      = aws_servicecatalogappregistry_application.app.application_tag
 }
 
 # 새 도메인 추가 시 여기에 module 블록만 추가

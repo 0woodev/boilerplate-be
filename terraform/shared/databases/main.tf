@@ -35,6 +35,7 @@ module "user_tables" {
   project_name = var.project_name
   stage        = var.stage
   tables       = local.user_tables
+  tags         = var.tags
 }
 
 # module "order_tables" {

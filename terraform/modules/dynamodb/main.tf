@@ -1,8 +1,8 @@
 locals {
-  default_tags = {
+  default_tags = merge({
     Project = var.project_name
     Stage   = var.stage
-  }
+  }, var.tags)
 
   # 테이블별 attribute 목록 (중복 제거): hash_key + range_key + GSI keys + LSI keys
   all_attributes = {

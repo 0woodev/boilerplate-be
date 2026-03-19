@@ -1,8 +1,8 @@
 locals {
-  default_tags = {
+  default_tags = merge({
     Project = var.project_name
     Stage   = var.stage
-  }
+  }, var.tags)
 
   # FIFO 큐는 이름에 .fifo suffix 필요
   queue_names = {

@@ -81,12 +81,26 @@ make local
 
 ### 3. 새 API 추가
 
+**방법 A — Claude skill (권장)**
+
+```
+/create-api
+```
+
+Claude가 대화형으로 domain, endpoint명, HTTP 메서드, 경로, 필요한 DynamoDB 테이블 여부를 물어보고 아래를 자동으로 처리한다.
+
+- `app/api/{domain}/{name}/handler.py` 생성 (ROUTE + 핸들러 스캐폴딩)
+- `terraform/domains/{domain}/main.tf` Lambda 항목 추가
+- 신규 테이블이 필요하면 `terraform/shared/databases/main.tf`에도 추가
+
+**방법 B — make 명령어**
+
 ```bash
 make api name=api_post_create_order domain=order
 # → app/api/order/api_post_create_order/handler.py 생성
 ```
 
-생성된 파일에서 `ROUTE`와 핸들러 로직만 구현하면 됨.
+생성된 파일에서 `ROUTE`와 핸들러 로직 구현 후, `terraform/domains/{domain}/main.tf`에 Lambda 항목을 수동으로 추가해야 한다.
 
 ## 핸들러 작성 규칙
 

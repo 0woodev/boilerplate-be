@@ -83,4 +83,6 @@ module "lambda" {
   reserved_concurrent_executions = try(each.value.reserved_concurrent_executions, -1)
   dead_letter_target_arn         = try(each.value.dead_letter_target_arn, null)
   log_retention_days             = try(each.value.log_retention_days, 14)
+
+  tags = var.tags
 }

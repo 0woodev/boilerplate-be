@@ -89,7 +89,8 @@ resource "aws_iam_role_policy" "github_actions" {
         Action = [
           "lambda:*", "apigateway:*", "dynamodb:*", "sqs:*",
           "iam:*",
-          "logs:*"
+          "logs:*",
+          "servicecatalog:*"
         ]
         Resource = "*"
       }
