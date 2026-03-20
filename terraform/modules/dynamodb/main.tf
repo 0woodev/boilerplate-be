@@ -95,7 +95,6 @@ resource "aws_dynamodb_table" "this" {
   tags = merge(local.default_tags, each.value.tags)
 
   lifecycle {
-    # 실수로 인한 테이블 삭제 방지. 삭제가 필요하면 이 블록을 주석 처리 후 apply
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
