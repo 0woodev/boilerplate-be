@@ -6,6 +6,12 @@ variable "fe_domain" {
   type        = string
 }
 
+variable "cors_extra_origins" {
+  description = "추가 CORS 허용 origin 목록. dev 로컬 개발 시 http://localhost:5173 등 추가"
+  type        = list(string)
+  default     = []
+}
+
 variable "cors_allow_methods" {
   type    = list(string)
   default = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]

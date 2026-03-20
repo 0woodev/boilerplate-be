@@ -69,11 +69,12 @@ resource "aws_lambda_layer_version" "common" {
 # Shared: API Gateway
 # ============================================================
 module "api_gateway" {
-  source       = "./shared/api_gateway"
-  project_name = var.project_name
-  stage        = var.stage
-  fe_domain    = var.fe_domain
-  tags         = aws_servicecatalogappregistry_application.app.application_tag
+  source             = "./shared/api_gateway"
+  project_name       = var.project_name
+  stage              = var.stage
+  fe_domain          = var.fe_domain
+  cors_extra_origins = var.stage == "dev" ? ["http://localhost:5173"] : []
+  tags               = aws_servicecatalogappregistry_application.app.application_tag
 }
 
 # ============================================================
