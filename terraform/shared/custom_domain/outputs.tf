@@ -1,9 +1,9 @@
-output "domain_name" {
-  description = "커스텀 도메인 (ex: myapp-api.wooapps.net)"
-  value       = aws_apigatewayv2_domain_name.this.domain_name
-}
-
 output "api_url" {
   description = "유저가 실제 호출하는 커스텀 도메인 URL (ex: https://myapp-api.wooapps.net)"
-  value       = "https://${aws_apigatewayv2_domain_name.this.domain_name}"
+  value       = "https://${var.be_domain}"
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront Distribution ID"
+  value       = aws_cloudfront_distribution.api.id
 }

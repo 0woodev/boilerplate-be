@@ -21,6 +21,20 @@ provider "aws" {
   region = var.aws_region
 }
 
+# CloudFront ACM 인증서는 us-east-1에 있어야 함
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
+
+# setup.sh에서 생성됨 - Terraform 외부 관리 (destroy 안전)
+data "aws_acm_certificate" "cloudfront_wildcard" {
+  provider    = aws.us_east_1
+  domain      = "*.${var.domain}"
+  statuses    = ["ISSUED"]
+  most_recent = true
+}
+
 # ============================================================
 # AWS AppRegistry — 앱 단위 리소스 그룹핑
 # ============================================================
@@ -107,12 +121,13 @@ module "user_domain" {
 module "custom_domain" {
   source = "./shared/custom_domain"
 
-  domain         = var.domain
-  be_domain      = var.be_domain
-  api_gateway_id = module.api_gateway.id
-  project_name   = var.project_name
-  stage          = var.stage
-  tags           = aws_servicecatalogappregistry_application.app.application_tag
+  domain               = var.domain
+  be_domain            = var.be_domain
+  api_gateway_endpoint = module.api_gateway.endpoint
+  acm_certificate_arn  = data.aws_acm_certificate.cloudfront_wildcard.arn
+  project_name         = var.project_name
+  stage                = var.stage
+  tags                 = aws_servicecatalogappregistry_application.app.application_tag
 }
 
 # 새 도메인 추가 시 여기에 module 블록만 추가
