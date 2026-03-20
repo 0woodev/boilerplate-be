@@ -39,11 +39,6 @@ jobs:
             -backend-config="region=${{ vars.AWS_REGION }}" \
             -backend-config="dynamodb_table=${{ vars.PROJECT_NAME }}-tf-lock"
 
-      - name: Migrate OIDC from resource to data source (one-time state rm)
-        working-directory: terraform/global
-        run: |
-          terraform state rm aws_iam_openid_connect_provider.github 2>/dev/null || true
-
       - name: Terraform Plan (global)
         working-directory: terraform/global
         run: |
