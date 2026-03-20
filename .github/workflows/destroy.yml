@@ -3,11 +3,6 @@ name: Terraform Destroy
 on:
   workflow_dispatch:
     inputs:
-      stage:
-        description: '삭제할 스테이지 (dev / prod)'
-        required: true
-        type: choice
-        options: [dev, prod]
       confirm:
         description: '삭제 확인 (yes 입력)'
         required: true
@@ -19,11 +14,11 @@ permissions:
 jobs:
   destroy:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.stage }}
+    environment: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       PROJECT_NAME: ${{ vars.PROJECT_NAME }}
-      STAGE: ${{ inputs.stage }}
+      STAGE: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
 
     steps:
       - name: Validate confirm input
