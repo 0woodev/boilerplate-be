@@ -78,4 +78,6 @@ jobs:
             -var="aws_account_id=${{ vars.AWS_ACCOUNT_ID }}" \
             -var="github_owner=${{ vars.GH_OWNER }}" \
             -var="tf_state_bucket=${{ vars.TF_STATE_BUCKET }}" \
-            -var="fe_domain=${{ vars.FE_DOMAIN }}"
+            -var="fe_domain=${{ vars.FE_DOMAIN }}" \
+            -var="domain=${{ vars.DOMAIN }}" \
+            -var="be_domain=${{ vars.BE_DOMAIN }}"

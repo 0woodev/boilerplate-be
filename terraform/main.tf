@@ -100,6 +100,20 @@ module "user_domain" {
   tags                      = aws_servicecatalogappregistry_application.app.application_tag
 }
 
+# ============================================================
+# Shared: Custom Domain (Route53 + API Gateway Custom Domain)
+# ============================================================
+module "custom_domain" {
+  source = "./shared/custom_domain"
+
+  domain         = var.domain
+  be_domain      = var.be_domain
+  api_gateway_id = module.api_gateway.id
+  project_name   = var.project_name
+  stage          = var.stage
+  tags           = aws_servicecatalogappregistry_application.app.application_tag
+}
+
 # 새 도메인 추가 시 여기에 module 블록만 추가
 # module "order_domain" {
 #   source       = "./domains/order"

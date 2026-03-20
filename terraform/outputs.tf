@@ -1,6 +1,11 @@
 output "api_endpoint" {
-  description = "API Gateway 엔드포인트"
+  description = "API Gateway 기본 엔드포인트 (execute-api URL)"
   value       = module.api_gateway.endpoint
+}
+
+output "api_custom_url" {
+  description = "커스텀 도메인 API URL (ex: https://myapp-api.wooapps.net)"
+  value       = module.custom_domain.api_url
 }
 
 output "user_lambda_names" {

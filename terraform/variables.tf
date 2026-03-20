@@ -33,6 +33,16 @@ variable "tf_state_bucket" {
   type        = string
 }
 
+variable "domain" {
+  description = "루트 도메인 (Route53 Hosted Zone). ex) wooapps.net"
+  type        = string
+}
+
+variable "be_domain" {
+  description = "BE 서브도메인. ex) myapp-api.wooapps.net (https:// 없이)"
+  type        = string
+}
+
 
 
 

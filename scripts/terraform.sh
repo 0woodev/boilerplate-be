@@ -28,6 +28,8 @@ TF_VAR_ARGS=(
   -var="github_owner=$GH_OWNER"
   -var="tf_state_bucket=$TF_STATE_BUCKET"
   -var="fe_domain=$FE_DOMAIN"
+  -var="domain=$DOMAIN"
+  -var="be_domain=$BE_DOMAIN"
 )
 
 case "$COMMAND" in
