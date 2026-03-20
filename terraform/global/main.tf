@@ -22,16 +22,11 @@ provider "aws" {
 
 # ============================================================
 # GitHub Actions OIDC Provider
-# AWS 계정당 URL 기준으로 1개만 존재 가능 → global에서 1회 생성
+# setup.sh 에서 AWS CLI로 생성 (계정당 1회, Terraform 외부 관리)
+# data source로 참조만 → terraform destroy 해도 절대 삭제 안 됨
 # ============================================================
-resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
-
-  lifecycle {
-    prevent_destroy = true
-  }
+data "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
 }
 
 # ============================================================
@@ -48,7 +43,7 @@ resource "aws_iam_role" "github_actions" {
     Statement = [{
       Effect = "Allow"
       Principal = {
-        Federated = aws_iam_openid_connect_provider.github.arn
+        Federated = data.aws_iam_openid_connect_provider.github.arn
       }
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
@@ -90,7 +85,9 @@ resource "aws_iam_role_policy" "github_actions" {
           "lambda:*", "apigateway:*", "dynamodb:*", "sqs:*",
           "iam:*",
           "logs:*",
-          "servicecatalog:*"
+          "servicecatalog:*",
+          "acm:*",
+          "route53:*"
         ]
         Resource = "*"
       }
