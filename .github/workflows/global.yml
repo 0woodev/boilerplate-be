@@ -39,6 +39,23 @@ jobs:
             -backend-config="region=${{ vars.AWS_REGION }}" \
             -backend-config="dynamodb_table=${{ vars.PROJECT_NAME }}-tf-lock"
 
+      - name: Import existing OIDC Provider (if exists)
+        working-directory: terraform/global
+        run: |
+          OIDC_ARN="arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com"
+          if aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$OIDC_ARN" > /dev/null 2>&1; then
+            echo "OIDC Provider already exists. Importing into Terraform state..."
+            terraform import \
+              -var="aws_region=${{ vars.AWS_REGION }}" \
+              -var="project_name=${{ vars.PROJECT_NAME }}" \
+              -var="github_owner=${{ vars.GH_OWNER }}" \
+              -var="aws_account_id=${{ vars.AWS_ACCOUNT_ID }}" \
+              -var="tf_state_bucket=${{ vars.TF_STATE_BUCKET }}" \
+              aws_iam_openid_connect_provider.github "$OIDC_ARN" || true
+          else
+            echo "OIDC Provider does not exist. Terraform will create it."
+          fi
+
       - name: Terraform Plan (global)
         working-directory: terraform/global
         run: |
