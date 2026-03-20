@@ -15,10 +15,14 @@ boilerplate-be 설계 과정에서 결정하고 구현한 내용의 체크리스
 - [x] **닭-달걀 문제 해결** — IAM Role을 `global/main.tf`로 이동, `for_each stages`로 dev/prod 동시 생성
 - [x] **인크리멘털 빌드 캐시** — SHA256 비교 → 변경된 endpoint만 재빌드, `actions/cache@v4`
 - [x] **Lambda Layer 분리** — requirements Layer + common 코드 Layer
-- [x] **커스텀 도메인 환경변수** — `BE_DOMAIN` dev/prod 분리 (`{app}-dev-api.{domain}` / `{app}-api.{domain}`)
 - [x] **per-stage 배포** — dev(dev 브랜치) / prod(main 브랜치) 자동 배포
 - [x] **AWS AppRegistry** — dev/prod 앱 단위 리소스 그룹핑, `awsApplication` 태그 전파, 콘솔 등록 확인 완료
-- [ ] **커스텀 도메인 Terraform 자동화** — Route53 Hosted Zone + ACM DNS 검증 + API Gateway 커스텀 도메인 연동
+- [x] **커스텀 도메인 Terraform 자동화** — ACM wildcard(`*.wooapps.net`) + Route53 A alias + API Gateway 커스텀 도메인. setup.sh에서 1회 생성 후 Terraform data source로 참조 (destroy 안전)
+- [x] **OIDC Provider → data source 전환** — setup.sh에서 AWS CLI로 1회 생성, Terraform destroy로 삭제되지 않음
+- [x] **Terraform destroy 워크플로우** — 브랜치 기반 stage 감지 (dev→dev, main→prod), `confirm: yes` 입력 필수, prod environment 승인 필요
+- [x] **DynamoDB prevent_destroy 제거** — destroy 워크플로우와 충돌 해결. confirm + environment 승인으로 보호
+- [x] **main 브랜치 보호** — PR 없이 push 불가 (admin bypass 가능)
+- [x] **prod environment 승인** — destroy.yml의 prod 실행 시 required reviewer 승인 필요
 - [ ] **CloudFront** — FE S3 호스팅 전환 또는 WAF/글로벌 레이턴시 필요 시점에 도입
 - [ ] **ECR 기반 컨테이너 Lambda** — ML/대용량 라이브러리 필요 시 `boilerplate-be-ecr` 별도 레포로 분리 예정
 
@@ -41,7 +45,7 @@ boilerplate-be 설계 과정에서 결정하고 구현한 내용의 체크리스
 
 - [x] **`make api`** — handler.py 스캐폴딩 (`make api name=api_post_order domain=order`)
 - [x] **`make diff-all`** — 변경된 endpoint 확인 (빌드 없이)
-- [ ] **`/create-api` Claude skill** — handler + terraform 동시 생성 자동화 (README 참고)
+- [x] **`/create-api` Claude skill** — handler.py + terraform domains Lambda 항목 동시 생성
 - [ ] **`make test`** — 단위 테스트 실행 환경 (현재 없음)
 - [ ] **로컬 DynamoDB** — DynamoDB Local 컨테이너 연동 (`make local-db`)
 
@@ -57,8 +61,17 @@ boilerplate-be 설계 과정에서 결정하고 구현한 내용의 체크리스
 
 ---
 
+## boilerplate-app (루트 레포)
+
+- [x] **setup.sh** — GitHub 레포 생성 + boilerplate 클론/push + submodule 등록 + S3/DynamoDB/OIDC/ACM 생성
+- [x] **teardown.sh** — GitHub 레포 삭제 + S3 버킷(전체 버전) 삭제 + DynamoDB 테이블 삭제
+- [x] **README.md** — 전체 셋업/배포/삭제 가이드, DNS 전파 주의사항 포함
+- [x] **new-app 테스트 및 teardown** — boilerplate 기반 새 프로젝트 생성/배포/삭제 검증 완료
+
+---
+
 ## Pending 작업 (다음 대화에서 이어서)
 
-1. **new_app_test 배포** — `boilerplate-app` 복사 후 `PROJECT_NAME=new_app_test`로 새 서비스 배포해서 보일러플레이트 검증
-2. **`/create-api` Claude skill 구현** — handler + terraform 동시 생성
-3. **커스텀 도메인 Terraform 자동화** — Route53 + ACM + API Gateway 연동
+1. **boilerplate-fe 작업** — CloudFront + S3 + GitHub Actions CI/CD (bp-be와 동일한 패턴)
+2. **인증 미들웨어** — Lambda Authorizer 또는 Cognito 기반
+3. **CloudWatch 알람** — Lambda 에러율 + DynamoDB 용량 경보
