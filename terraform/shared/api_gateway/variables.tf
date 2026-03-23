@@ -27,6 +27,18 @@ variable "cors_max_age" {
   default = 300
 }
 
+variable "throttling_burst_limit" {
+  description = "API Gateway 최대 동시 요청 수 (버스트). 초과 시 429 반환"
+  type        = number
+  default     = 200
+}
+
+variable "throttling_rate_limit" {
+  description = "API Gateway 초당 최대 요청 수 (steady-state). 초과 시 429 반환"
+  type        = number
+  default     = 100
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
