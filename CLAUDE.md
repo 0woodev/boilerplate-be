@@ -7,7 +7,7 @@
 
 - **Runtime**: Python 3.12, AWS Lambda (per-endpoint)
 - **API**: API Gateway HTTP v2
-- **DB**: DynamoDB (PynamoDB)
+- **DB**: DynamoDB (boto3 wrapper — `common/dynamo/`)
 - **IaC**: Terraform
 - **CI/CD**: GitHub Actions (OIDC)
 
@@ -60,9 +60,9 @@ boilerplate-be 설계 과정에서 결정하고 구현한 내용의 체크리스
 - [x] **HttpError 계층** — `NotFoundError`, `BadRequestError`, `UnauthorizedError` 등
 - [x] **Flask 로컬 개발 서버** — `app/api/` 자동 탐색 라우트 등록, `make local`
 - [x] **request_util** — `parse_event`, `get_path_params`, `get_query_params`
-- [ ] **인증 미들웨어** — JWT / Cognito 기반 인증 (현재 없음)
+- [ ] **JWT 인증 미들웨어** — app-level JWT 검증 데코레이터 (`@require_auth`), 토큰 발급/갱신
 - [ ] **페이지네이션 유틸** — DynamoDB LastEvaluatedKey 기반 커서 페이지네이션
-- [ ] **공통 DynamoDB 헬퍼** — PynamoDB 모델 베이스 클래스 정리
+- [ ] **공통 DynamoDB 헬퍼** — `common/dynamo/` boto3 wrapper 확장 (모델 베이스 클래스, 타입 힌트)
 
 ### 개발 경험 (DX)
 
@@ -84,5 +84,5 @@ boilerplate-be 설계 과정에서 결정하고 구현한 내용의 체크리스
 ### Pending 작업
 
 1. **boilerplate-fe 작업** — CloudFront + S3 + GitHub Actions CI/CD
-2. **인증 미들웨어** — Lambda Authorizer 또는 Cognito 기반
+2. **JWT 인증 미들웨어** — app-level, `@require_auth` 데코레이터 + 토큰 발급/갱신
 3. **CloudWatch 알람** — Lambda 에러율 + DynamoDB 용량 경보
