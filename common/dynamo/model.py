@@ -1,75 +1,145 @@
+import os
 from typing import ClassVar, Self
 
 from pydantic import BaseModel, ConfigDict
 
-
-INTERNAL_KEYS: frozenset[str] = frozenset(
-    {"PK", "SK"} | {f"GSI{i}{s}" for i in range(1, 10) for s in ("PK", "SK")}
-)
+from .client import DynamoClient, QueryMethod
 
 
 class DynamoModel(BaseModel):
     """
-    Single-table DynamoDB 모델 베이스.
+    DynamoDB Active Record 베이스.
 
-    서브클래스는 필드만 선언하고 `_PK` / `_SK` / `_GSI` 템플릿을 지정한다.
+    서브클래스 정의 예:
 
         class User(DynamoModel):
-            user_id: str
-            name: str
-            email: str
-            created_at: str
+            table_name: ClassVar[str] = "{project_name}-{stage}-users"
+            hash_key:   ClassVar[str] = "user_id"
+            # range_key: ClassVar[str | None] = None   # optional
 
-            _PK = "USER#{user_id}"
-            _SK = "PROFILE"
-            _GSI = {"GSI1": {"pk": "USER", "sk": "{created_at}#{user_id}"}}
+            user_id: str = ""
+            name:    str = ""
+            email:   str = ""
+            created_at: str = ""
 
-    규칙:
-      - PK/SK/GSI*PK/GSI*SK 는 기존 필드들의 조합으로만 만든다 (keys 는 데이터의 함수).
-      - 모델에 선언되지 않은 필드도 `extra="allow"` 로 보존된다 (PynamoDB 가
-        declared field 만 유지하던 단점을 해소).
-      - DB 에 저장된 internal key 는 읽을 때 버리고, 저장 시 항상 `to_item()` 에서
-        재생성한다. 그래서 스키마가 바뀌어도 scan -> re-put 만 돌리면 마이그레이션 끝.
+    사용:
+
+        user = User(user_id=..., name=...)
+        user.save()                          # put
+
+        user2 = User.get(user_id="abc")      # 단건 조회 → User | None
+        users, cur = User.query(             # GSI/PK 쿼리 → (list[User], cursor)
+            hash_value="abc",
+            method=QueryMethod.BEGINS_WITH,
+            range_value="2024-",
+        )
+        users, cur = User.scan(limit=20)     # 전체 스캔
+        User.update_by_key({"name": "x"}, user_id="abc")
+        User.delete_by_key(user_id="abc")
+        user.delete()                        # 인스턴스에서 직접
+
+    특징:
+      - pydantic `extra="allow"` — 모델 미선언 필드도 보존 (PynamoDB 단점 해소)
+      - `table_name` 은 `{project_name}-{stage}-...` 같은 템플릿. 환경변수
+        `PROJECT_NAME`, `STAGE` 로 런타임 치환.
     """
 
     model_config = ConfigDict(extra="allow")
 
-    _PK: ClassVar[str] = ""
-    _SK: ClassVar[str] = ""
-    _GSI: ClassVar[dict[str, dict[str, str]]] = {}
+    # 서브클래스에서 오버라이드 (ClassVar 로 명시해야 pydantic field 로 잡히지 않음)
+    table_name: ClassVar[str] = ""
+    hash_key:   ClassVar[str] = ""
+    range_key:  ClassVar[str | None] = None
 
-    # ── serialization ──────────────────────────────────────────
-    def to_item(self) -> dict:
-        data = self.model_dump()
-        data["PK"] = self._format(self._PK, data)
-        data["SK"] = self._format(self._SK, data)
-        for idx, spec in self._GSI.items():
-            data[f"{idx}PK"] = self._format(spec["pk"], data)
-            data[f"{idx}SK"] = self._format(spec["sk"], data)
-        return data
+    # ── instance methods ──────────────────────────────────────
+    def save(self) -> None:
+        DynamoClient.put(self._table(), self.model_dump())
+
+    def delete(self) -> None:
+        DynamoClient.delete(self._table(), self._key_from_self())
+
+    # ── classmethod CRUD ──────────────────────────────────────
+    @classmethod
+    def get(cls, **key_fields) -> Self | None:
+        item = DynamoClient.get(cls._table(), cls._key_from_fields(key_fields))
+        return cls(**item) if item else None
 
     @classmethod
-    def from_item(cls, item: dict) -> Self:
-        return cls(**{k: v for k, v in item.items() if k not in INTERNAL_KEYS})
-
-    # ── key factories (client 가 조회/삭제 시 사용) ────────────
-    @classmethod
-    def pk_of(cls, **fields) -> str:
-        return cls._format(cls._PK, fields)
+    def update_by_key(cls, updates: dict, **key_fields) -> Self:
+        item = DynamoClient.update(
+            cls._table(), cls._key_from_fields(key_fields), updates,
+        )
+        return cls(**item)
 
     @classmethod
-    def sk_of(cls, **fields) -> str:
-        return cls._format(cls._SK, fields)
+    def delete_by_key(cls, **key_fields) -> None:
+        DynamoClient.delete(cls._table(), cls._key_from_fields(key_fields))
 
     @classmethod
-    def gsi_pk_of(cls, gsi: str, **fields) -> str:
-        return cls._format(cls._GSI[gsi]["pk"], fields)
+    def query(
+        cls,
+        *,
+        index_name: str | None = None,
+        hash_key: str | None = None,
+        hash_value,
+        range_key: str | None = None,
+        method: QueryMethod = QueryMethod.EQ,
+        range_value=None,
+        range_value2=None,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> tuple[list[Self], str | None]:
+        items, next_cursor = DynamoClient.query(
+            cls._table(),
+            index_name=index_name,
+            hash_key=hash_key or cls.hash_key,
+            hash_value=hash_value,
+            range_key=range_key or cls.range_key,
+            method=method,
+            range_value=range_value,
+            range_value2=range_value2,
+            limit=limit,
+            cursor=cursor,
+        )
+        return [cls(**it) for it in items], next_cursor
 
     @classmethod
-    def gsi_sk_of(cls, gsi: str, **fields) -> str:
-        return cls._format(cls._GSI[gsi]["sk"], fields)
+    def scan(
+        cls,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> tuple[list[Self], str | None]:
+        items, next_cursor = DynamoClient.scan(
+            cls._table(), limit=limit, cursor=cursor,
+        )
+        return [cls(**it) for it in items], next_cursor
 
-    # ── internal ───────────────────────────────────────────────
-    @staticmethod
-    def _format(template: str, data: dict) -> str:
-        return template.format(**data) if "{" in template else template
+    # ── helpers ───────────────────────────────────────────────
+    @classmethod
+    def _table(cls) -> str:
+        return cls.table_name.format(
+            project_name=os.environ["PROJECT_NAME"],
+            stage=os.environ["STAGE"],
+        )
+
+    @classmethod
+    def _key_from_fields(cls, fields: dict) -> dict:
+        if cls.hash_key not in fields:
+            raise ValueError(
+                f"{cls.__name__}: hash_key '{cls.hash_key}' required, got {list(fields)}"
+            )
+        key = {cls.hash_key: fields[cls.hash_key]}
+        if cls.range_key:
+            if cls.range_key not in fields:
+                raise ValueError(
+                    f"{cls.__name__}: range_key '{cls.range_key}' required"
+                )
+            key[cls.range_key] = fields[cls.range_key]
+        return key
+
+    def _key_from_self(self) -> dict:
+        key = {self.hash_key: getattr(self, self.hash_key)}
+        if self.range_key:
+            key[self.range_key] = getattr(self, self.range_key)
+        return key

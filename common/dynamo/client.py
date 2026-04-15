@@ -1,20 +1,15 @@
 import base64
 import json
-import os
-from typing import Any, TypeVar
+from enum import Enum
+from typing import Any
 
 import boto3
 from boto3.dynamodb.conditions import Key
 
-from .model import DynamoModel
-
-M = TypeVar("M", bound=DynamoModel)
-
 
 # ──────────────────────────────────────────────────────────────
-# Opaque cursor — LastEvaluatedKey 를 base64 JSON 으로 직렬화
-# 클라이언트에는 불투명 문자열로 노출되므로 내부 스키마가 바뀌어도
-# API 계약이 깨지지 않는다.
+# Opaque cursor — LastEvaluatedKey 를 base64 JSON 으로 직렬화.
+# 클라이언트에는 불투명 문자열로 노출되어 내부 스키마가 바뀌어도 API 가 안 깨진다.
 # ──────────────────────────────────────────────────────────────
 def encode_cursor(last_evaluated_key: dict | None) -> str | None:
     if not last_evaluated_key:
@@ -28,146 +23,122 @@ def decode_cursor(cursor: str | None) -> dict | None:
     return json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
 
 
+class QueryMethod(str, Enum):
+    EQ            = "eq"
+    BEGINS_WITH   = "begins_with"
+    BETWEEN       = "between"
+    GT            = "gt"
+    GTE           = "gte"
+    LT            = "lt"
+    LTE           = "lte"
+
+
 class DynamoClient:
     """
-    DynamoDB wrapper — 모델 클래스 기반 API.
+    저수준 stateless DynamoDB 유틸. dict in / dict out.
 
-    handler 코드는 `PK`, `SK`, `GSI*` 같은 내부 키를 직접 조립하지 않는다.
-    모든 키 규칙은 모델 클래스(`DynamoModel` 서브클래스) 에만 존재한다.
+    상위에서는 `DynamoModel` 의 클래스 메서드 (`User.get(...)`, `User.query(...)`)
+    를 통해 모델 인스턴스로 자동 매핑된다. 그 매핑이 부담되거나 ad-hoc 한
+    쿼리가 필요할 때 이 클래스를 직접 호출하면 dict 으로 받을 수 있다.
     """
 
-    def __init__(self, table_name: str | None = None):
-        self._table = boto3.resource("dynamodb").Table(
-            table_name or os.environ["TABLE_NAME"]
-        )
+    _resource = None  # boto3 resource 캐시 (Lambda 콜드스타트 절감)
 
-    # ── CRUD ───────────────────────────────────────────────────
-    def put(self, model: DynamoModel) -> None:
-        self._table.put_item(Item=model.to_item())
+    # ── boto3 resource cache ──────────────────────────────────
+    @classmethod
+    def _table(cls, table_name: str):
+        if cls._resource is None:
+            cls._resource = boto3.resource("dynamodb")
+        return cls._resource.Table(table_name)
 
-    def get(self, model_cls: type[M], **key_fields) -> M | None:
-        res = self._table.get_item(Key={
-            "PK": model_cls.pk_of(**key_fields),
-            "SK": model_cls.sk_of(**key_fields),
-        })
-        item = res.get("Item")
-        return model_cls.from_item(item) if item else None
+    # ── CRUD ──────────────────────────────────────────────────
+    @classmethod
+    def get(cls, table_name: str, key: dict) -> dict | None:
+        res = cls._table(table_name).get_item(Key=key)
+        return res.get("Item")
 
-    def delete(self, model_cls: type[M], **key_fields) -> None:
-        self._table.delete_item(Key={
-            "PK": model_cls.pk_of(**key_fields),
-            "SK": model_cls.sk_of(**key_fields),
-        })
+    @classmethod
+    def put(cls, table_name: str, item: dict) -> None:
+        cls._table(table_name).put_item(Item=item)
 
-    def update(
-        self,
-        model_cls: type[M],
-        updates: dict[str, Any],
-        **key_fields,
-    ) -> M:
-        """부분 수정. 반환값은 업데이트 후의 모델 인스턴스."""
+    @classmethod
+    def delete(cls, table_name: str, key: dict) -> None:
+        cls._table(table_name).delete_item(Key=key)
+
+    @classmethod
+    def update(cls, table_name: str, key: dict, updates: dict[str, Any]) -> dict:
         expr_names = {f"#k{i}": k for i, k in enumerate(updates)}
         expr_values = {f":v{i}": v for i, v in enumerate(updates.values())}
         update_expr = "SET " + ", ".join(
             f"#k{i} = :v{i}" for i in range(len(updates))
         )
-        res = self._table.update_item(
-            Key={
-                "PK": model_cls.pk_of(**key_fields),
-                "SK": model_cls.sk_of(**key_fields),
-            },
+        res = cls._table(table_name).update_item(
+            Key=key,
             UpdateExpression=update_expr,
             ExpressionAttributeNames=expr_names,
             ExpressionAttributeValues=expr_values,
             ReturnValues="ALL_NEW",
         )
-        return model_cls.from_item(res.get("Attributes", {}))
+        return res.get("Attributes", {})
 
-    # ── Query / Scan ───────────────────────────────────────────
+    # ── Query / Scan ──────────────────────────────────────────
+    @classmethod
     def query(
-        self,
-        model_cls: type[M],
+        cls,
+        table_name: str,
         *,
-        gsi: str | None = None,
-        pk: str | None = None,
-        sk_prefix: str | None = None,
+        index_name: str | None = None,
+        hash_key: str,
+        hash_value,
+        range_key: str | None = None,
+        method: QueryMethod = QueryMethod.EQ,
+        range_value=None,
+        range_value2=None,
         limit: int | None = None,
         cursor: str | None = None,
-        **pk_fields,
-    ) -> tuple[list[M], str | None]:
-        """
-        기본 인덱스 또는 GSI 쿼리.
-
-        PK 값 결정 우선순위:
-          1. `pk=` 로 직접 지정
-          2. `**pk_fields` (예: user_id="abc") → 모델이 템플릿으로 조립
-          3. GSI 의 템플릿이 placeholder 없는 고정 문자열이면 그 값 사용
-        """
-        pk_attr = f"{gsi}PK" if gsi else "PK"
-        sk_attr = f"{gsi}SK" if gsi else "SK"
-
-        pk_value = pk if pk is not None else self._resolve_pk(model_cls, gsi, pk_fields)
-        if pk_value is None:
-            raise ValueError(
-                f"query: PK value not resolved for {model_cls.__name__}"
-                f"{f' (gsi={gsi})' if gsi else ''}"
+    ) -> tuple[list[dict], str | None]:
+        condition = Key(hash_key).eq(hash_value)
+        if range_key and range_value is not None:
+            condition &= cls._range_condition(
+                range_key, method, range_value, range_value2,
             )
 
-        condition = Key(pk_attr).eq(pk_value)
-        if sk_prefix:
-            condition &= Key(sk_attr).begins_with(sk_prefix)
-
         kwargs: dict[str, Any] = {"KeyConditionExpression": condition}
-        if gsi:
-            kwargs["IndexName"] = gsi
+        if index_name:
+            kwargs["IndexName"] = index_name
         if limit:
             kwargs["Limit"] = limit
         if cursor:
             kwargs["ExclusiveStartKey"] = decode_cursor(cursor)
 
-        res = self._table.query(**kwargs)
-        items = [model_cls.from_item(it) for it in res.get("Items", [])]
-        return items, encode_cursor(res.get("LastEvaluatedKey"))
+        res = cls._table(table_name).query(**kwargs)
+        return res.get("Items", []), encode_cursor(res.get("LastEvaluatedKey"))
 
+    @classmethod
     def scan(
-        self,
-        model_cls: type[M],
+        cls,
+        table_name: str,
         *,
         limit: int | None = None,
         cursor: str | None = None,
-    ) -> tuple[list[M], str | None]:
-        """
-        전체 스캔 — 마이그레이션용 (GSI 추가 후 재저장 등).
-        단일 테이블에 여러 엔티티가 공존하므로 모델의 PK prefix 로 필터링한다.
-        """
+    ) -> tuple[list[dict], str | None]:
         kwargs: dict[str, Any] = {}
         if limit:
             kwargs["Limit"] = limit
         if cursor:
             kwargs["ExclusiveStartKey"] = decode_cursor(cursor)
+        res = cls._table(table_name).scan(**kwargs)
+        return res.get("Items", []), encode_cursor(res.get("LastEvaluatedKey"))
 
-        res = self._table.scan(**kwargs)
-        pk_prefix = model_cls._PK.split("{", 1)[0]
-        items = [
-            model_cls.from_item(it)
-            for it in res.get("Items", [])
-            if it.get("PK", "").startswith(pk_prefix)
-        ]
-        return items, encode_cursor(res.get("LastEvaluatedKey"))
-
-    # ── internal ───────────────────────────────────────────────
+    # ── internal ──────────────────────────────────────────────
     @staticmethod
-    def _resolve_pk(
-        model_cls: type[DynamoModel],
-        gsi: str | None,
-        pk_fields: dict,
-    ) -> str | None:
-        if gsi:
-            template = model_cls._GSI[gsi]["pk"]
-        else:
-            template = model_cls._PK
-        if "{" not in template:
-            return template
-        if pk_fields:
-            return template.format(**pk_fields)
-        return None
+    def _range_condition(range_key: str, method: QueryMethod, value, value2):
+        k = Key(range_key)
+        if method == QueryMethod.EQ:           return k.eq(value)
+        if method == QueryMethod.BEGINS_WITH:  return k.begins_with(value)
+        if method == QueryMethod.BETWEEN:      return k.between(value, value2)
+        if method == QueryMethod.GT:           return k.gt(value)
+        if method == QueryMethod.GTE:          return k.gte(value)
+        if method == QueryMethod.LT:           return k.lt(value)
+        if method == QueryMethod.LTE:          return k.lte(value)
+        raise ValueError(f"Unknown QueryMethod: {method}")
