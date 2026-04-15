@@ -1,145 +1,403 @@
+"""DynamoDB Active Record model + GSI definitions.
+
+See DynamoConcept.md for the complete spec.
+"""
 import os
-from typing import ClassVar, Self
+from typing import Any, ClassVar, Self
 
 from pydantic import BaseModel, ConfigDict
 
 from .client import DynamoClient, QueryMethod
+from .keys import render_full, render_partial
+
+
+class GSI:
+    """
+    Base class for nested GSI definitions within a DynamoModel.
+
+    Subclasses declare:
+      - pk_attr / sk_attr (DB column names — must match terraform)
+      - pk_template / sk_template (value rules, same convention as main keys)
+
+    Access: `User.ByEmail.query(email="...")` etc.
+    """
+
+    _parent: ClassVar[type["DynamoModel"] | None] = None
+
+    pk_attr:     ClassVar[str] = ""
+    sk_attr:     ClassVar[str | None] = None
+    pk_template: ClassVar[str] = ""
+    sk_template: ClassVar[str | None] = None
+
+    @classmethod
+    def index_name(cls) -> str:
+        """GSI name for IndexName param; defaults to class name (e.g. 'ByEmail')."""
+        return cls.__name__
+
+    @classmethod
+    def query(cls, instance=None, *, limit=None, cursor=None, **fields):
+        return cls._parent._query_auto(
+            _KeySpec.from_gsi(cls), instance, limit, cursor, fields
+        )
+
+    @classmethod
+    def query_starts_with(cls, instance=None, *, limit=None, cursor=None, **fields):
+        return cls._parent._query_starts_with(
+            _KeySpec.from_gsi(cls), instance, limit, cursor, fields
+        )
+
+    @classmethod
+    def query_gt(cls, instance=None, *, limit=None, cursor=None, **fields):
+        return cls._parent._query_range(
+            _KeySpec.from_gsi(cls), QueryMethod.GT,
+            instance, limit, cursor, fields,
+        )
+
+    @classmethod
+    def query_gte(cls, instance=None, *, limit=None, cursor=None, **fields):
+        return cls._parent._query_range(
+            _KeySpec.from_gsi(cls), QueryMethod.GTE,
+            instance, limit, cursor, fields,
+        )
+
+    @classmethod
+    def query_lt(cls, instance=None, *, limit=None, cursor=None, **fields):
+        return cls._parent._query_range(
+            _KeySpec.from_gsi(cls), QueryMethod.LT,
+            instance, limit, cursor, fields,
+        )
+
+    @classmethod
+    def query_lte(cls, instance=None, *, limit=None, cursor=None, **fields):
+        return cls._parent._query_range(
+            _KeySpec.from_gsi(cls), QueryMethod.LTE,
+            instance, limit, cursor, fields,
+        )
+
+    @classmethod
+    def query_between(cls, instance=None, *, start: dict, end: dict,
+                      limit=None, cursor=None, **fields):
+        return cls._parent._query_between(
+            _KeySpec.from_gsi(cls),
+            start, end, instance, limit, cursor, fields,
+        )
+
+
+class _KeySpec:
+    """Internal — bundles pk/sk attr+template for main table or a GSI."""
+
+    def __init__(self, index_name, pk_attr, sk_attr, pk_template, sk_template):
+        self.index_name = index_name
+        self.pk_attr = pk_attr
+        self.sk_attr = sk_attr
+        self.pk_template = pk_template
+        self.sk_template = sk_template
+
+    @classmethod
+    def from_main(cls, model_cls: type["DynamoModel"]) -> "_KeySpec":
+        return cls(
+            index_name=None,
+            pk_attr=model_cls.pk_attr,
+            sk_attr=model_cls.sk_attr,
+            pk_template=model_cls.pk_template,
+            sk_template=model_cls.sk_template,
+        )
+
+    @classmethod
+    def from_gsi(cls, gsi_cls: type[GSI]) -> "_KeySpec":
+        return cls(
+            index_name=gsi_cls.index_name(),
+            pk_attr=gsi_cls.pk_attr,
+            sk_attr=gsi_cls.sk_attr,
+            pk_template=gsi_cls.pk_template,
+            sk_template=gsi_cls.sk_template,
+        )
 
 
 class DynamoModel(BaseModel):
     """
-    DynamoDB Active Record 베이스.
+    Active Record base for DynamoDB entities.
 
-    서브클래스 정의 예:
+    Subclass declares:
+      - table_name (template with {project_name} / {stage})
+      - pk_attr / sk_attr (main table column names)
+      - pk_template / sk_template (value rules)
+      - fields (pydantic fields)
+      - optional nested GSI classes
 
-        class User(DynamoModel):
-            table_name: ClassVar[str] = "{project_name}-{stage}-users"
-            hash_key:   ClassVar[str] = "user_id"
-            # range_key: ClassVar[str | None] = None   # optional
-
-            user_id: str = ""
-            name:    str = ""
-            email:   str = ""
-            created_at: str = ""
-
-    사용:
-
-        user = User(user_id=..., name=...)
-        user.save()                          # put
-
-        user2 = User.get(user_id="abc")      # 단건 조회 → User | None
-        users, cur = User.query(             # GSI/PK 쿼리 → (list[User], cursor)
-            hash_value="abc",
-            method=QueryMethod.BEGINS_WITH,
-            range_value="2024-",
-        )
-        users, cur = User.scan(limit=20)     # 전체 스캔
-        User.update_by_key({"name": "x"}, user_id="abc")
-        User.delete_by_key(user_id="abc")
-        user.delete()                        # 인스턴스에서 직접
-
-    특징:
-      - pydantic `extra="allow"` — 모델 미선언 필드도 보존 (PynamoDB 단점 해소)
-      - `table_name` 은 `{project_name}-{stage}-...` 같은 템플릿. 환경변수
-        `PROJECT_NAME`, `STAGE` 로 런타임 치환.
+    See DynamoConcept.md for the full spec.
     """
 
     model_config = ConfigDict(extra="allow")
 
-    # 서브클래스에서 오버라이드 (ClassVar 로 명시해야 pydantic field 로 잡히지 않음)
-    table_name: ClassVar[str] = ""
-    hash_key:   ClassVar[str] = ""
-    range_key:  ClassVar[str | None] = None
+    table_name:  ClassVar[str] = ""
+    pk_attr:     ClassVar[str] = "PK"
+    sk_attr:     ClassVar[str | None] = "SK"
+    pk_template: ClassVar[str] = ""
+    sk_template: ClassVar[str | None] = None
 
-    # ── instance methods ──────────────────────────────────────
-    def save(self) -> None:
-        DynamoClient.put(self._table(), self.model_dump())
+    # set by __init_subclass__ — list of nested GSI classes on this subclass
+    _gsis: ClassVar[list[type[GSI]]] = []
 
-    def delete(self) -> None:
-        DynamoClient.delete(self._table(), self._key_from_self())
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        gsis = []
+        for _, attr in cls.__dict__.items():
+            if isinstance(attr, type) and issubclass(attr, GSI) and attr is not GSI:
+                attr._parent = cls
+                gsis.append(attr)
+        cls._gsis = gsis
 
-    # ── classmethod CRUD ──────────────────────────────────────
+    # ── table name ────────────────────────────────────────────
     @classmethod
-    def get(cls, **key_fields) -> Self | None:
-        item = DynamoClient.get(cls._table(), cls._key_from_fields(key_fields))
-        return cls(**item) if item else None
-
-    @classmethod
-    def update_by_key(cls, updates: dict, **key_fields) -> Self:
-        item = DynamoClient.update(
-            cls._table(), cls._key_from_fields(key_fields), updates,
-        )
-        return cls(**item)
-
-    @classmethod
-    def delete_by_key(cls, **key_fields) -> None:
-        DynamoClient.delete(cls._table(), cls._key_from_fields(key_fields))
-
-    @classmethod
-    def query(
-        cls,
-        *,
-        index_name: str | None = None,
-        hash_key: str | None = None,
-        hash_value,
-        range_key: str | None = None,
-        method: QueryMethod = QueryMethod.EQ,
-        range_value=None,
-        range_value2=None,
-        limit: int | None = None,
-        cursor: str | None = None,
-    ) -> tuple[list[Self], str | None]:
-        items, next_cursor = DynamoClient.query(
-            cls._table(),
-            index_name=index_name,
-            hash_key=hash_key or cls.hash_key,
-            hash_value=hash_value,
-            range_key=range_key or cls.range_key,
-            method=method,
-            range_value=range_value,
-            range_value2=range_value2,
-            limit=limit,
-            cursor=cursor,
-        )
-        return [cls(**it) for it in items], next_cursor
-
-    @classmethod
-    def scan(
-        cls,
-        *,
-        limit: int | None = None,
-        cursor: str | None = None,
-    ) -> tuple[list[Self], str | None]:
-        items, next_cursor = DynamoClient.scan(
-            cls._table(), limit=limit, cursor=cursor,
-        )
-        return [cls(**it) for it in items], next_cursor
-
-    # ── helpers ───────────────────────────────────────────────
-    @classmethod
-    def _table(cls) -> str:
+    def _resolved_table(cls) -> str:
         return cls.table_name.format(
             project_name=os.environ["PROJECT_NAME"],
             stage=os.environ["STAGE"],
         )
 
+    # ── serialization ─────────────────────────────────────────
+    def to_item(self) -> dict[str, Any]:
+        data = self.model_dump()
+        # Main table keys (required)
+        data[self.pk_attr] = render_full(self.pk_template, data)
+        if self.sk_template is not None and self.sk_attr:
+            data[self.sk_attr] = render_full(self.sk_template, data)
+        # GSI keys (sparse — skip if fields missing)
+        for gsi in self._gsis:
+            try:
+                pk_val = render_full(gsi.pk_template, data)
+            except ValueError:
+                continue
+            if gsi.sk_template is not None and gsi.sk_attr:
+                try:
+                    sk_val = render_full(gsi.sk_template, data)
+                except ValueError:
+                    continue
+                data[gsi.pk_attr] = pk_val
+                data[gsi.sk_attr] = sk_val
+            else:
+                data[gsi.pk_attr] = pk_val
+        return data
+
     @classmethod
-    def _key_from_fields(cls, fields: dict) -> dict:
-        if cls.hash_key not in fields:
-            raise ValueError(
-                f"{cls.__name__}: hash_key '{cls.hash_key}' required, got {list(fields)}"
-            )
-        key = {cls.hash_key: fields[cls.hash_key]}
-        if cls.range_key:
-            if cls.range_key not in fields:
-                raise ValueError(
-                    f"{cls.__name__}: range_key '{cls.range_key}' required"
-                )
-            key[cls.range_key] = fields[cls.range_key]
+    def from_item(cls, item: dict) -> Self:
+        internals: set[str] = {cls.pk_attr}
+        if cls.sk_attr:
+            internals.add(cls.sk_attr)
+        for gsi in cls._gsis:
+            internals.add(gsi.pk_attr)
+            if gsi.sk_attr:
+                internals.add(gsi.sk_attr)
+        return cls(**{k: v for k, v in item.items() if k not in internals})
+
+    # ── CRUD (instance) ───────────────────────────────────────
+    def save(self) -> None:
+        DynamoClient.put(self._resolved_table(), self.to_item())
+
+    def delete(self) -> None:
+        data = self.model_dump()
+        DynamoClient.delete(self._resolved_table(), self._build_key(data))
+
+    # ── CRUD (class) ──────────────────────────────────────────
+    @classmethod
+    def get(cls, instance=None, **fields) -> Self | None:
+        fields = cls._merge_instance(instance, fields)
+        item = DynamoClient.get(cls._resolved_table(), cls._build_key(fields))
+        return cls.from_item(item) if item else None
+
+    @classmethod
+    def update_by_key(cls, updates: dict, instance=None, **fields) -> Self:
+        fields = cls._merge_instance(instance, fields)
+        item = DynamoClient.update(
+            cls._resolved_table(), cls._build_key(fields), updates,
+        )
+        return cls.from_item(item)
+
+    @classmethod
+    def delete_by_key(cls, instance=None, **fields) -> None:
+        fields = cls._merge_instance(instance, fields)
+        DynamoClient.delete(cls._resolved_table(), cls._build_key(fields))
+
+    # ── Query (main table) ────────────────────────────────────
+    @classmethod
+    def query(cls, instance=None, *, limit=None, cursor=None, **fields):
+        return cls._query_auto(
+            _KeySpec.from_main(cls), instance, limit, cursor, fields,
+        )
+
+    @classmethod
+    def query_starts_with(cls, instance=None, *, limit=None, cursor=None, **fields):
+        return cls._query_starts_with(
+            _KeySpec.from_main(cls), instance, limit, cursor, fields,
+        )
+
+    @classmethod
+    def query_gt(cls, instance=None, *, limit=None, cursor=None, **fields):
+        return cls._query_range(
+            _KeySpec.from_main(cls), QueryMethod.GT,
+            instance, limit, cursor, fields,
+        )
+
+    @classmethod
+    def query_gte(cls, instance=None, *, limit=None, cursor=None, **fields):
+        return cls._query_range(
+            _KeySpec.from_main(cls), QueryMethod.GTE,
+            instance, limit, cursor, fields,
+        )
+
+    @classmethod
+    def query_lt(cls, instance=None, *, limit=None, cursor=None, **fields):
+        return cls._query_range(
+            _KeySpec.from_main(cls), QueryMethod.LT,
+            instance, limit, cursor, fields,
+        )
+
+    @classmethod
+    def query_lte(cls, instance=None, *, limit=None, cursor=None, **fields):
+        return cls._query_range(
+            _KeySpec.from_main(cls), QueryMethod.LTE,
+            instance, limit, cursor, fields,
+        )
+
+    @classmethod
+    def query_between(cls, instance=None, *, start: dict, end: dict,
+                      limit=None, cursor=None, **fields):
+        return cls._query_between(
+            _KeySpec.from_main(cls),
+            start, end, instance, limit, cursor, fields,
+        )
+
+    @classmethod
+    def scan(cls, *, limit=None, cursor=None) -> tuple[list[Self], str | None]:
+        items, next_cursor = DynamoClient.scan(
+            cls._resolved_table(), limit=limit, cursor=cursor,
+        )
+        return [cls.from_item(it) for it in items], next_cursor
+
+    # ── helpers ───────────────────────────────────────────────
+    @classmethod
+    def _merge_instance(cls, instance, fields: dict) -> dict:
+        if instance is None:
+            return fields
+        return {**instance.model_dump(exclude_unset=True), **fields}
+
+    @classmethod
+    def _build_key(cls, fields: dict) -> dict:
+        key = {cls.pk_attr: render_full(cls.pk_template, fields)}
+        if cls.sk_template is not None and cls.sk_attr:
+            key[cls.sk_attr] = render_full(cls.sk_template, fields)
         return key
 
-    def _key_from_self(self) -> dict:
-        key = {self.hash_key: getattr(self, self.hash_key)}
-        if self.range_key:
-            key[self.range_key] = getattr(self, self.range_key)
-        return key
+    # ── query core (used by both main and GSI) ───────────────
+    @classmethod
+    def _query_auto(cls, spec: _KeySpec, instance, limit, cursor, fields):
+        fields = cls._merge_instance(instance, fields)
+        pk_value = render_full(spec.pk_template, fields)
+
+        method = QueryMethod.EQ
+        range_value = None
+        range_key = None
+        if spec.sk_template and spec.sk_attr:
+            sk_value, is_complete = render_partial(spec.sk_template, fields)
+            if sk_value:
+                range_value = sk_value
+                range_key = spec.sk_attr
+                method = QueryMethod.EQ if is_complete else QueryMethod.BEGINS_WITH
+
+        items, next_cursor = DynamoClient.query(
+            cls._resolved_table(),
+            index_name=spec.index_name,
+            hash_key=spec.pk_attr,
+            hash_value=pk_value,
+            range_key=range_key,
+            method=method,
+            range_value=range_value,
+            limit=limit,
+            cursor=cursor,
+        )
+        return [cls.from_item(it) for it in items], next_cursor
+
+    @classmethod
+    def _query_starts_with(cls, spec: _KeySpec, instance, limit, cursor, fields):
+        """Explicit begins_with — partial fields는 물론, 모든 필드가 채워져도
+        EQ 로 수축시키지 않는다. 단일 placeholder SK에서 접두사 매칭 시 사용."""
+        fields = cls._merge_instance(instance, fields)
+        pk_value = render_full(spec.pk_template, fields)
+        if not (spec.sk_template and spec.sk_attr):
+            raise ValueError(
+                f"{cls.__name__}: query_starts_with requires sk_template"
+            )
+        sk_value, _ = render_partial(spec.sk_template, fields)
+        if not sk_value:
+            raise ValueError(
+                f"{cls.__name__}: query_starts_with requires at least one SK field"
+            )
+        items, next_cursor = DynamoClient.query(
+            cls._resolved_table(),
+            index_name=spec.index_name,
+            hash_key=spec.pk_attr,
+            hash_value=pk_value,
+            range_key=spec.sk_attr,
+            method=QueryMethod.BEGINS_WITH,
+            range_value=sk_value,
+            limit=limit,
+            cursor=cursor,
+        )
+        return [cls.from_item(it) for it in items], next_cursor
+
+    @classmethod
+    def _query_range(cls, spec: _KeySpec, method: QueryMethod,
+                     instance, limit, cursor, fields):
+        fields = cls._merge_instance(instance, fields)
+        pk_value = render_full(spec.pk_template, fields)
+        if not (spec.sk_template and spec.sk_attr):
+            raise ValueError(
+                f"{cls.__name__}: {method.value} requires sk_template on this key"
+            )
+        sk_value, _ = render_partial(spec.sk_template, fields)
+        if not sk_value:
+            raise ValueError(
+                f"{cls.__name__}: {method.value} requires at least one SK field"
+            )
+        items, next_cursor = DynamoClient.query(
+            cls._resolved_table(),
+            index_name=spec.index_name,
+            hash_key=spec.pk_attr,
+            hash_value=pk_value,
+            range_key=spec.sk_attr,
+            method=method,
+            range_value=sk_value,
+            limit=limit,
+            cursor=cursor,
+        )
+        return [cls.from_item(it) for it in items], next_cursor
+
+    @classmethod
+    def _query_between(cls, spec: _KeySpec, start: dict, end: dict,
+                       instance, limit, cursor, fields):
+        fields = cls._merge_instance(instance, fields)
+        pk_value = render_full(spec.pk_template, fields)
+        if not (spec.sk_template and spec.sk_attr):
+            raise ValueError(
+                f"{cls.__name__}: query_between requires sk_template"
+            )
+        sv_start, _ = render_partial(spec.sk_template, start)
+        sv_end, _ = render_partial(spec.sk_template, end)
+        if not sv_start or not sv_end:
+            raise ValueError(
+                f"{cls.__name__}: query_between requires at least one SK field in start and end"
+            )
+        items, next_cursor = DynamoClient.query(
+            cls._resolved_table(),
+            index_name=spec.index_name,
+            hash_key=spec.pk_attr,
+            hash_value=pk_value,
+            range_key=spec.sk_attr,
+            method=QueryMethod.BETWEEN,
+            range_value=sv_start,
+            range_value2=sv_end,
+            limit=limit,
+            cursor=cursor,
+        )
+        return [cls.from_item(it) for it in items], next_cursor
