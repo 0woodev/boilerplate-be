@@ -21,8 +21,10 @@
 ## 자주 쓰는 명령어
 
 ```bash
-make setup    # venv 생성 + 패키지 설치
-make local    # 로컬 서버 실행 (Flask, port 5001)
+make setup      # venv 생성 + 런타임 패키지 설치
+make setup-dev  # + 개발 의존성 (pytest, moto) 설치
+make local      # 로컬 서버 실행 (Flask, port 5001)
+make test       # pytest 실행
 make api name=api_post_order domain=order
 ```
 
@@ -61,8 +63,10 @@ boilerplate-be 설계 과정에서 결정하고 구현한 내용의 체크리스
 - [x] **Flask 로컬 개발 서버** — `app/api/` 자동 탐색 라우트 등록, `make local`
 - [x] **request_util** — `parse_event`, `get_path_params`, `get_query_params`
 - [ ] **JWT 인증 미들웨어** — app-level JWT 검증 데코레이터 (`@require_auth`), 토큰 발급/갱신
-- [ ] **페이지네이션 유틸** — DynamoDB LastEvaluatedKey 기반 커서 페이지네이션
-- [ ] **공통 DynamoDB 헬퍼** — `common/dynamo/` boto3 wrapper 확장 (모델 베이스 클래스, 타입 힌트)
+- [x] **페이지네이션 유틸** — opaque cursor (base64) 기반, 모든 query/scan 에 내장
+- [x] **DynamoDB 모델 프레임워크** — pydantic 기반 `DynamoModel` + 중첩 `GSI`
+      키 템플릿(`KEY@value#...`), Active Record API, 자동 GSI 컬럼 생성.
+      규격: `DynamoConcept.md`. 모델: `app/api/{user,group,member}/model.py`
 
 ### 개발 경험 (DX)
 
@@ -70,7 +74,7 @@ boilerplate-be 설계 과정에서 결정하고 구현한 내용의 체크리스
 - [x] **`make diff-all`** — 변경된 endpoint 확인 (빌드 없이)
 - [x] **`/create-api` Claude skill** — handler.py + terraform domains Lambda 항목 동시 생성
 - [x] **`/apply-new-tech` Claude skill** — 새 기술 도입 방법 조사·추천
-- [ ] **`make test`** — 단위 테스트 실행 환경 (현재 없음)
+- [x] **`make test`** — pytest + moto(DynamoDB) 기반 단위/통합 테스트 (`make setup-dev`)
 - [ ] **로컬 DynamoDB** — DynamoDB Local 컨테이너 연동 (`make local-db`)
 
 ### 운영 / 관찰가능성

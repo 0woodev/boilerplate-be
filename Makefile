@@ -9,7 +9,7 @@ CONFIG_FILE ?= ../$(STAGE).env
 
 .PHONY: all zip-src-all zip-layer-all zip-common-src-all diff-all \
         clean-all clean-src clean-layer clean-common \
-        setup local api \
+        setup setup-dev local api test \
         tf-global tf-init tf-plan tf-apply \
         gh-setup
 
@@ -54,8 +54,16 @@ setup:
 		echo "✅ Done. Run: source $(VENV)/bin/activate"; \
 	fi
 
+# dev 의존성(pytest, moto 등) 까지 설치
+setup-dev: setup
+	@$(PIP) install -r requirements-dev.txt -q
+	@echo "✅ dev deps installed"
+
 local:
 	FLASK_DEBUG=1 $(PYTHON) local_server.py
+
+test:
+	@$(VENV)/bin/pytest tests/
 
 # make api name=api_post_create_order [domain=order]
 api:
