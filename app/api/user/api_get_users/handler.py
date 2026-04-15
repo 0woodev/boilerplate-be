@@ -1,7 +1,7 @@
 from common.awslambda.response_handler import ResponseHandler
 from common.awslambda.request_util import get_query_params
 
-from app.api.user.model import User
+from common.models import User
 
 ROUTE = ("GET", "/users")
 

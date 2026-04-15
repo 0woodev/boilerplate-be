@@ -1,4 +1,4 @@
-from app.api.user.model import User
+from common.models import User
 from tests.conftest import create_table
 
 import pytest

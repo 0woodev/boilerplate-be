@@ -66,7 +66,7 @@ boilerplate-be 설계 과정에서 결정하고 구현한 내용의 체크리스
 - [x] **페이지네이션 유틸** — opaque cursor (base64) 기반, 모든 query/scan 에 내장
 - [x] **DynamoDB 모델 프레임워크** — pydantic 기반 `DynamoModel` + 중첩 `GSI`
       키 템플릿(`KEY@value#...`), Active Record API, 자동 GSI 컬럼 생성.
-      규격: `DynamoConcept.md`. 모델: `app/api/{user,group,member}/model.py`
+      규격: `DynamoConcept.md`. 모델: `common/models/{user,group,member}.py`
 
 ### 개발 경험 (DX)
 

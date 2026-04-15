@@ -4,11 +4,11 @@
 # DB 라이프사이클은 Lambda 배포와 독립적이므로 shared/ 에서 관리.
 # 새 도메인 테이블 추가 시 해당 도메인 locals 블록에 항목만 추가.
 #
-# 컬럼 네이밍/GSI 규칙은 app/api/<domain>/model.py 의 DynamoModel 서브클래스와 1:1.
+# 컬럼 네이밍/GSI 규칙은 common/models/<domain>.py 의 DynamoModel 서브클래스와 1:1.
 # ============================================================
 
 # ── User 도메인 ────────────────────────────────────────────────
-# app/api/user/model.py :: User
+# common/models/user.py :: User
 locals {
   user_tables = {
     users = {
@@ -41,7 +41,7 @@ module "user_tables" {
 }
 
 # ── Group 도메인 ───────────────────────────────────────────────
-# app/api/group/model.py :: Group
+# common/models/group.py :: Group
 locals {
   group_tables = {
     groups = {
@@ -69,7 +69,7 @@ module "group_tables" {
 }
 
 # ── Member 도메인 ──────────────────────────────────────────────
-# app/api/member/model.py :: Member
+# common/models/member.py :: Member
 locals {
   member_tables = {
     members = {

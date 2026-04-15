@@ -1,4 +1,4 @@
-from app.api.group.model import Group
+from common.models import Group
 from tests.conftest import create_table
 
 import pytest

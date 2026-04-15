@@ -2,7 +2,7 @@ from common.awslambda.response_handler import ResponseHandler
 from common.awslambda.request_util import get_path_params
 from common.awslambda.exceptions import NotFoundError
 
-from app.api.user.model import User
+from common.models import User
 
 ROUTE = ("GET", "/users/{user_id}")
 

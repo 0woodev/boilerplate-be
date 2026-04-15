@@ -129,7 +129,7 @@ def test_find_by_email(users_table):
 
 ```python
 # 1. 모델 import
-from app.api.foo.model import Foo
+from common.models import Foo
 from tests.conftest import create_table
 
 FOOS_TABLE = "test-local-foos"   # 모델의 table_name 템플릿이 렌더링한 값과 동일하게

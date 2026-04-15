@@ -4,7 +4,7 @@ from datetime import datetime, UTC
 from common.awslambda.response_handler import ResponseHandler
 from common.awslambda.request_util import parse_event
 
-from app.api.user.model import User
+from common.models import User
 
 ROUTE = ("POST", "/users")
 
