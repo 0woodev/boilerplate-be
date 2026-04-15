@@ -1,24 +1,23 @@
+import uuid
+from datetime import datetime, UTC
+
 from common.awslambda.response_handler import ResponseHandler
 from common.awslambda.request_util import parse_event
 
-ROUTE = ("POST", "/users")
+from app.api.user.model import User
 
-# TODO: DynamoDB 연동
-# import uuid
-# import os
-# import boto3
-# TABLE_NAME = os.environ["TABLE_NAME"]
-# table = boto3.resource("dynamodb").Table(TABLE_NAME)
+ROUTE = ("POST", "/users")
 
 
 @ResponseHandler.api
 def handler(event, context):
     body = parse_event(event)
 
-    # TODO: PynamoDB model로 저장 후 생성된 리소스 반환
-    # user_id = str(uuid.uuid4())
-    # user = User(user_id=user_id, **body)
-    # user.save()
-    # return 201, user.to_dict()
-
-    return 201, {"user_id": "todo", **body}
+    user = User(
+        user_id=str(uuid.uuid4()),
+        email=body.get("email", ""),
+        name=body.get("name", ""),
+        created_at=datetime.now(UTC).isoformat(),
+    )
+    user.save()
+    return 201, user.model_dump()
