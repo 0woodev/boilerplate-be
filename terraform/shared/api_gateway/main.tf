@@ -11,7 +11,7 @@ resource "aws_apigatewayv2_api" "this" {
   protocol_type = "HTTP"
 
   cors_configuration {
-    allow_origins = concat([var.fe_domain], var.cors_extra_origins)
+    allow_origins = concat([var.fe_url], var.cors_extra_origins)
     allow_methods = var.cors_allow_methods
     allow_headers = var.cors_allow_headers
     max_age       = var.cors_max_age

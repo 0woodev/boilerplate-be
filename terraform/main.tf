@@ -86,7 +86,7 @@ module "api_gateway" {
   source             = "./shared/api_gateway"
   project_name       = var.project_name
   stage              = var.stage
-  fe_domain          = var.fe_domain
+  fe_url             = var.fe_url
   cors_extra_origins = var.stage == "dev" ? ["http://localhost:5173"] : []
   tags               = aws_servicecatalogappregistry_application.app.application_tag
 }

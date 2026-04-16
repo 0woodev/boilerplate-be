@@ -25,14 +25,19 @@ case "$COMMAND" in
     gh variable set AWS_REGION      --repo "$REPO" --body "$AWS_REGION"
     gh variable set AWS_ACCOUNT_ID  --repo "$REPO" --body "$AWS_ACCOUNT_ID"
     gh variable set TF_STATE_BUCKET --repo "$REPO" --body "$TF_STATE_BUCKET"
+    gh variable set DOMAIN          --repo "$REPO" --body "$DOMAIN"
 
     # ── Environment variables (stage별 다른 값) ────────────────
     echo "🔧 Creating GitHub Environment: $STAGE ($REPO)"
     gh api "repos/$REPO/environments/$STAGE" -X PUT --silent
 
     echo "📦 Setting environment variables for: $STAGE"
+    # 호스트만 — terraform custom domain 등에 사용
     gh variable set FE_DOMAIN --env "$STAGE" --repo "$REPO" --body "$FE_DOMAIN"
     gh variable set BE_DOMAIN --env "$STAGE" --repo "$REPO" --body "$BE_DOMAIN"
+    # 풀 URL (https:// 포함) — CORS, 외부 응답에 사용
+    gh variable set FE_URL    --env "$STAGE" --repo "$REPO" --body "$FE_URL"
+    gh variable set BE_URL    --env "$STAGE" --repo "$REPO" --body "$BE_URL"
 
     echo "✅ Done. ($REPO / env: $STAGE)"
     ;;
