@@ -59,11 +59,44 @@ setup-dev: setup
 	@$(PIP) install -r requirements-dev.txt -q
 	@echo "✅ dev deps installed"
 
+# PROJECT_NAME 은 dev.env 에서 가져옴 (없으면 기본값 boilerplate)
+PROJECT_NAME ?= $(shell grep -E '^PROJECT_NAME=' ../dev.env 2>/dev/null | cut -d'"' -f2 || echo "boilerplate")
+
+# STAGE=local → DynamoDB Local (Docker, port 8000)
+# STAGE=dev   → 실제 AWS DynamoDB (dev 환경)
 local:
-	FLASK_DEBUG=1 $(PYTHON) local_server.py
+	@if [ "$(STAGE)" = "local" ]; then \
+		echo "🐳 Using DynamoDB Local (http://localhost:8000)"; \
+		PROJECT_NAME=$(PROJECT_NAME) STAGE=local AWS_DEFAULT_REGION=ap-northeast-2 \
+		AWS_ENDPOINT_URL=http://localhost:8000 \
+		AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local \
+		FLASK_DEBUG=1 $(PYTHON) local_server.py; \
+	else \
+		echo "☁️  Using AWS DynamoDB ($(STAGE))"; \
+		PROJECT_NAME=$(PROJECT_NAME) STAGE=$(STAGE) \
+		FLASK_DEBUG=1 $(PYTHON) local_server.py; \
+	fi
+
+# DynamoDB Local 컨테이너 (1회 실행)
+local-db:
+	docker run -d --name dynamodb-local -p 8000:8000 amazon/dynamodb-local 2>/dev/null || \
+		docker start dynamodb-local
+	@echo "🐳 DynamoDB Local running on http://localhost:8000"
+
+# 로컬 DB에 테이블 스키마 생성 (스키마는 scripts/create_local_tables.py 에서 정의)
+local-db-init:
+	@$(PYTHON) scripts/create_local_tables.py
+
+local-db-stop:
+	docker stop dynamodb-local
 
 test:
-	@$(VENV)/bin/pytest tests/
+	@$(VENV)/bin/pytest tests/ --ignore=tests/e2e
+
+# E2E 테스트: make e2e STAGE=local | dev
+# E2E_BASE_URL 환경변수로 dev/prod 타겟 지정 가능
+e2e:
+	@E2E_STAGE=$(STAGE) $(VENV)/bin/pytest tests/e2e/ -v
 
 # make api name=api_post_create_order [domain=order]
 api:
