@@ -1,8 +1,8 @@
 variable "project_name" { type = string }
 variable "stage"        { type = string }
 
-variable "fe_domain" {
-  description = "프론트엔드 도메인 (CORS 허용 origin). ex) https://example.com"
+variable "fe_url" {
+  description = "프론트엔드 풀 URL (CORS 허용 origin). 스킴 포함. ex) https://example.com"
   type        = string
 }
 

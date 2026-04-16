@@ -59,13 +59,13 @@ jobs:
       - name: Terraform Destroy
         working-directory: terraform
         run: |
-          terraform destroy -auto-approve \
+          terraform destroy -auto-approve -input=false \
             -var="stage=${{ env.STAGE }}" \
             -var="project_name=${{ vars.PROJECT_NAME }}" \
             -var="aws_region=${{ vars.AWS_REGION }}" \
             -var="aws_account_id=${{ vars.AWS_ACCOUNT_ID }}" \
             -var="github_owner=${{ vars.GH_OWNER }}" \
             -var="tf_state_bucket=${{ vars.TF_STATE_BUCKET }}" \
-            -var="fe_domain=${{ vars.FE_DOMAIN }}" \
+            -var="fe_url=${{ vars.FE_URL }}" \
             -var="domain=${{ vars.DOMAIN }}" \
             -var="be_domain=${{ vars.BE_DOMAIN }}"
