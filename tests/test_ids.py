@@ -46,6 +46,16 @@ class TestUuid7Hex:
         ids = {_uuid7_hex() for _ in range(10000)}
         assert len(ids) == 10000
 
+    def test_uniqueness_in_same_ms(self, monkeypatch):
+        """time을 freeze해서 정확히 같은 ms 내에서도 충돌 없음 검증."""
+        fixed = 1745000000.123  # 임의 고정 시각
+        monkeypatch.setattr("common.ids.time.time", lambda: fixed)
+        ids = {_uuid7_hex() for _ in range(10000)}
+        assert len(ids) == 10000
+        # 모두 같은 timestamp prefix 가져야 함
+        ts_prefixes = {i[:12] for i in ids}
+        assert len(ts_prefixes) == 1
+
 
 class TestGenerateId:
     def test_format(self):
