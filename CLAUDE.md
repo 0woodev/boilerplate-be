@@ -30,6 +30,51 @@ make api name=api_post_order domain=order
 
 ---
 
+## 컨벤션
+
+### ID 생성
+
+**`uuid.uuid4()` 직접 쓰지 않는다.** `common.ids.generate_id` 사용.
+
+```python
+from common.ids import generate_id
+
+user_id = generate_id("usr")    # usr_018f3a1c7b4e7abc8xxxxxxxxxxxxxxx
+ws_id   = generate_id("ws")     # ws_018f3a1c...
+ch_id   = generate_id("ch")     # ch_018f3a1c...
+```
+
+이유:
+- **시간 정렬**: UUIDv7 기반 (앞 48bit = Unix ms). 문자열 사전순 = 생성 시각 순.
+- **가독성**: prefix로 엔티티 즉시 구분 (Stripe 스타일).
+- 짧은 prefix (3-letter 권장): `usr`, `ws`, `mem`, `ch`, `log`, `evt`.
+
+> **시계 역전 주의**: NTP 등으로 system time이 뒤로 가면 새 ID가 옛 ID보다 사전순으로 작아질 수 있음. 정렬이 critical하면 별도 timestamp 필드 권장.
+
+### DB 테이블 보호
+
+prod 테이블은 `terraform/shared/databases/main.tf`에서 명시적으로 보호 활성:
+
+```hcl
+my_tables = {
+  my_domain = {
+    hash_key  = "PK"
+    range_key = "SK"
+    point_in_time_recovery      = true
+    deletion_protection_enabled = var.stage == "prod"   # AWS-level 차단
+    # ...
+  }
+}
+```
+
+- `deletion_protection_enabled` (AWS-level): terraform destroy도 API에서 거부. **prevent_destroy 우회 케이스(module 통째 제거)도 막는 진짜 마지막 안전핀**.
+- `prevent_destroy` (terraform lifecycle): 모듈에서 hardcoded `true`.
+- `point_in_time_recovery`: 35일 시점 복원.
+
+dev 테이블은 default false로 자유롭게 리셋 가능.
+
+---
+
 ## 진행 현황
 
 boilerplate-be 설계 과정에서 결정하고 구현한 내용의 체크리스트.

@@ -23,10 +23,15 @@ variable "tables" {
     stream_enabled   = optional(bool, false)
     stream_view_type = optional(string, "NEW_AND_OLD_IMAGES") # NEW_IMAGE | OLD_IMAGE | NEW_AND_OLD_IMAGES | KEYS_ONLY
 
-    # ── 복구 / 암호화 ──────────────────────────────────────────
+    # ── 복구 / 암호화 / 보호 ─────────────────────────────────
     point_in_time_recovery = optional(bool, false)
     server_side_encryption = optional(bool, false)
     kms_master_key_id      = optional(string, null) # null이면 AWS 관리형 키
+
+    # AWS-level 삭제 차단. terraform destroy도 API에서 거부됨.
+    # prevent_destroy(terraform lifecycle)보다 강함 — module 통째 제거 우회 케이스도 막음.
+    # prod에서 권장. dev에서는 false로 자유롭게 리셋 가능.
+    deletion_protection_enabled = optional(bool, false)
 
     # ── GSI (Global Secondary Index) ──────────────────────────
     gsi = optional(list(object({
