@@ -1,9 +1,19 @@
 from common.awslambda.response_handler import ResponseHandler
-from common.awslambda.request_util import parse_event
+from common.awslambda.request_util import get_query_params
+
+from common.models import User
 
 ROUTE = ("GET", "/users")
 
 
 @ResponseHandler.api
 def handler(event, context):
-    return {"message": "ok", "users": [], "total": 0, "page": 1}
+    params = get_query_params(event)
+    limit = int(params.get("limit", 20))
+    cursor = params.get("cursor")
+
+    users, next_cursor = User.scan(limit=limit, cursor=cursor)
+    return {
+        "users": [u.model_dump() for u in users],
+        "next_cursor": next_cursor,
+    }

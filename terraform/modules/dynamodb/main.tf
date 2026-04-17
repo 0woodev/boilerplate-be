@@ -58,6 +58,9 @@ resource "aws_dynamodb_table" "this" {
     enabled = each.value.point_in_time_recovery
   }
 
+  # AWS-level 삭제 차단 (prevent_destroy보다 강한 안전망)
+  deletion_protection_enabled = each.value.deletion_protection_enabled
+
   # 암호화
   dynamic "server_side_encryption" {
     for_each = each.value.server_side_encryption ? [1] : []
@@ -95,6 +98,10 @@ resource "aws_dynamodb_table" "this" {
   tags = merge(local.default_tags, each.value.tags)
 
   lifecycle {
-    prevent_destroy = false
+    # [SECURITY] 운영 데이터 보호용으로 true 권장
+    # destroy 시 흐름:
+    #   1. 이 값을 false로 변경 → commit & push → apply 실행 (인프라 변경 없음)
+    #   2. destroy workflow 수동 실행 (confirm: yes + prod Environment 승인)
+    prevent_destroy = true
   }
 }

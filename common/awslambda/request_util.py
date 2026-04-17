@@ -8,6 +8,9 @@ def parse_event(event: dict) -> dict:
         try:
             return json.loads(body)
         except json.JSONDecodeError:
+            # TODO: return {} 대신 BadRequestError("Invalid JSON body") raise로 변경
+            #   현재는 파싱 실패 시 빈 dict 반환 → 에러 원인 추적 불가
+            #   from common.awslambda.exceptions import BadRequestError 임포트 후 교체
             return {}
     return body
 

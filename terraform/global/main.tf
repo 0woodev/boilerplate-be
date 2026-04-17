@@ -79,16 +79,138 @@ resource "aws_iam_role_policy" "github_actions" {
         Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
         Resource = "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-tf-lock"
       },
+      # ── Lambda Functions (stage-scoped) ─────────────────────────
       {
         Effect = "Allow"
         Action = [
-          "lambda:*", "apigateway:*", "dynamodb:*", "sqs:*",
-          "iam:*",
-          "logs:*",
-          "servicecatalog:*",
-          "cloudfront:*",
-          "acm:*",
-          "route53:*"
+          "lambda:CreateFunction", "lambda:UpdateFunctionCode", "lambda:UpdateFunctionConfiguration",
+          "lambda:GetFunction", "lambda:GetFunctionConfiguration", "lambda:DeleteFunction",
+          "lambda:AddPermission", "lambda:RemovePermission", "lambda:GetPolicy",
+          "lambda:CreateAlias", "lambda:UpdateAlias", "lambda:DeleteAlias",
+          "lambda:GetAlias", "lambda:ListAliases",
+          "lambda:PublishVersion", "lambda:ListVersionsByFunction",
+          "lambda:TagResource", "lambda:UntagResource", "lambda:ListTags"
+        ]
+        Resource = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-${each.key}-*"
+      },
+      # ── Lambda Layers (stage-scoped) ──────────────────────────
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:PublishLayerVersion", "lambda:DeleteLayerVersion",
+          "lambda:GetLayerVersion", "lambda:ListLayerVersions",
+          "lambda:GetLayerVersionPolicy",
+          "lambda:AddLayerVersionPermission", "lambda:RemoveLayerVersionPermission"
+        ]
+        Resource = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:layer:${var.project_name}-${each.key}-*"
+      },
+      # ── API Gateway (region-scoped, ID가 런타임에 결정되어 project 기반 ARN 제한 불가) ──
+      {
+        Effect   = "Allow"
+        Action   = ["apigateway:GET", "apigateway:POST", "apigateway:PUT", "apigateway:PATCH", "apigateway:DELETE"]
+        Resource = "arn:aws:apigateway:${var.aws_region}::/*"
+      },
+      # ── DynamoDB App Tables (stage-scoped) ────────────────────
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:CreateTable", "dynamodb:DeleteTable", "dynamodb:DescribeTable", "dynamodb:UpdateTable",
+          "dynamodb:ListTagsOfResource", "dynamodb:TagResource", "dynamodb:UntagResource",
+          "dynamodb:UpdateTimeToLive", "dynamodb:DescribeTimeToLive",
+          "dynamodb:UpdateContinuousBackups", "dynamodb:DescribeContinuousBackups"
+        ]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-${each.key}-*"
+      },
+      # ── SQS Queues (stage-scoped) ─────────────────────────────
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:CreateQueue", "sqs:DeleteQueue",
+          "sqs:GetQueueAttributes", "sqs:SetQueueAttributes", "sqs:GetQueueUrl",
+          "sqs:TagQueue", "sqs:UntagQueue"
+        ]
+        Resource = "arn:aws:sqs:${var.aws_region}:${var.aws_account_id}:${var.project_name}-${each.key}-*"
+      },
+      # ── IAM (Lambda 실행 Role만, stage-scoped) ────────────────
+      # iam:* 대신 Lambda execution role 관리에 필요한 최소 권한만 부여
+      # GitHub Actions Role 자체 수정 불가 → 권한 에스컬레이션 차단
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:UpdateRole",
+          "iam:TagRole", "iam:UntagRole", "iam:ListRoleTags",
+          "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy", "iam:ListRolePolicies",
+          "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListAttachedRolePolicies"
+        ]
+        Resource = "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-${each.key}-*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "iam:PassRole"
+        Resource = "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-${each.key}-*"
+        Condition = {
+          StringEquals = { "iam:PassedToService" = "lambda.amazonaws.com" }
+        }
+      },
+      # ── CloudWatch Logs (stage-scoped) ────────────────────────
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup", "logs:DeleteLogGroup",
+          "logs:PutRetentionPolicy", "logs:DeleteRetentionPolicy",
+          "logs:TagLogGroup", "logs:UntagLogGroup",
+          "logs:TagResource", "logs:UntagResource", "logs:ListTagsForResource", "logs:ListTagsLogGroup"
+        ]
+        Resource = "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-${each.key}-*"
+      },
+      {
+        # DescribeLogGroups는 list 작업이라 Resource: * 필요
+        Effect   = "Allow"
+        Action   = ["logs:DescribeLogGroups"]
+        Resource = "*"
+      },
+      # ── AppRegistry (resource-level 권한 미지원) ───────────────
+      {
+        Effect = "Allow"
+        Action = [
+          "servicecatalog:CreateApplication", "servicecatalog:GetApplication",
+          "servicecatalog:UpdateApplication", "servicecatalog:DeleteApplication",
+          "servicecatalog:CreateAttributeGroup", "servicecatalog:GetAttributeGroup",
+          "servicecatalog:UpdateAttributeGroup", "servicecatalog:DeleteAttributeGroup",
+          "servicecatalog:AssociateAttributeGroup", "servicecatalog:DisassociateAttributeGroup",
+          "servicecatalog:ListAssociatedAttributeGroups",
+          "servicecatalog:AssociateResource", "servicecatalog:DisassociateResource",
+          "servicecatalog:GetAssociatedResource", "servicecatalog:ListAssociatedResources",
+          "servicecatalog:TagResource", "servicecatalog:UntagResource",
+          "servicecatalog:ListTagsForResource", "servicecatalog:SyncResource"
+        ]
+        Resource = "*"
+      },
+      # ── CloudFront (Distribution ARN은 랜덤 ID라 project 기반 제한 불가) ──
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateDistribution", "cloudfront:GetDistribution",
+          "cloudfront:GetDistributionConfig", "cloudfront:UpdateDistribution", "cloudfront:DeleteDistribution",
+          "cloudfront:TagResource", "cloudfront:UntagResource", "cloudfront:ListTagsForResource",
+          "cloudfront:ListDistributions"
+        ]
+        Resource = "*"
+      },
+      # ── ACM (read-only: Terraform data source로만 사용) ───────
+      {
+        Effect   = "Allow"
+        Action   = ["acm:DescribeCertificate", "acm:ListCertificates"]
+        Resource = "*"
+      },
+      # ── Route53 ───────────────────────────────────────────────
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:GetHostedZone", "route53:ListHostedZones", "route53:ListHostedZonesByName",
+          "route53:ChangeResourceRecordSets", "route53:GetChange",
+          "route53:ListResourceRecordSets",
+          "route53:ListTagsForResource", "route53:ChangeTagsForResource"
         ]
         Resource = "*"
       }
