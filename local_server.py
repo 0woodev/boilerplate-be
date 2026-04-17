@@ -6,6 +6,16 @@ from flask import Flask, request
 app = Flask(__name__)
 
 
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+    if request.method == "OPTIONS":
+        response.status_code = 204
+    return response
+
+
 def make_event(req, path_params=None):
     """Flask request → API Gateway v2 event 포맷 변환"""
     body = req.get_data(as_text=True)
