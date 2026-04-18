@@ -104,6 +104,17 @@ module "databases" {
 # ============================================================
 # Domains
 # ============================================================
+module "health_domain" {
+  source       = "./domains/health"
+  project_name = var.project_name
+  stage        = var.stage
+
+  api_gateway_id            = module.api_gateway.id
+  api_gateway_execution_arn = module.api_gateway.execution_arn
+  common_layer_arns         = [aws_lambda_layer_version.requirements.arn, aws_lambda_layer_version.common.arn]
+  tags                      = aws_servicecatalogappregistry_application.app.application_tag
+}
+
 module "user_domain" {
   source       = "./domains/user"
   project_name = var.project_name
