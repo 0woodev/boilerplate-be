@@ -10,6 +10,10 @@ from scripts.generate_patch_notes import (
     fill_empty_bodies,
     draft_dev_body,
     draft_user_body,
+    resolve_provider,
+    default_model_for,
+    ANTHROPIC_DEFAULT_MODEL,
+    OPENAI_DEFAULT_MODEL,
 )
 
 
@@ -132,8 +136,37 @@ class TestUpsertIdempotency:
         assert len(notes) == 3
 
 
-# ── L2 LLM 초안 (mock client) ─────────────────────────────────
-class _MockMessages:
+# ── 제공자 선택 / 모델 기본값 ───────────────────────────────────
+class TestProviderSelection:
+    def test_default_provider_is_anthropic(self, monkeypatch):
+        monkeypatch.delenv("PATCH_NOTES_PROVIDER", raising=False)
+        assert resolve_provider() == "anthropic"
+
+    def test_explicit_anthropic(self, monkeypatch):
+        monkeypatch.setenv("PATCH_NOTES_PROVIDER", "anthropic")
+        assert resolve_provider() == "anthropic"
+
+    def test_explicit_openai(self, monkeypatch):
+        monkeypatch.setenv("PATCH_NOTES_PROVIDER", "openai")
+        assert resolve_provider() == "openai"
+
+    def test_invalid_provider_raises(self, monkeypatch):
+        monkeypatch.setenv("PATCH_NOTES_PROVIDER", "gemini")
+        with pytest.raises(ValueError) as exc:
+            resolve_provider()
+        assert "gemini" in str(exc.value)
+        assert "anthropic" in str(exc.value)
+        assert "openai" in str(exc.value)
+
+    def test_default_model_per_provider(self):
+        assert default_model_for("anthropic") == ANTHROPIC_DEFAULT_MODEL
+        assert default_model_for("openai") == OPENAI_DEFAULT_MODEL
+        assert ANTHROPIC_DEFAULT_MODEL == "claude-sonnet-4-6"
+        assert OPENAI_DEFAULT_MODEL == "gpt-4.1-mini"
+
+
+# ── L2 mock clients ───────────────────────────────────────────
+class _AnthropicMockMessages:
     def __init__(self, recorder):
         self._recorder = recorder
 
@@ -155,19 +188,59 @@ class _MockMessages:
         return _Resp()
 
 
-class _MockClient:
+class _AnthropicMockClient:
+    """anthropic 규약: client.messages.create(...).content[0].text"""
+
     def __init__(self):
         self.calls = []
-        self.messages = _MockMessages(self.calls)
+        self.messages = _AnthropicMockMessages(self.calls)
 
 
-class TestL2FillEmptyBodies:
+class _OpenAIMockCompletions:
+    def __init__(self, recorder):
+        self._recorder = recorder
+
+    def create(self, **kwargs):
+        self._recorder.append(kwargs)
+        # system 메시지로 dev/user 를 구분.
+        system_content = kwargs["messages"][0]["content"]
+        text = "## DEV 초안" if "technical audience" in system_content else "## USER 초안"
+
+        class _Msg:
+            content = text
+
+        class _Choice:
+            message = _Msg()
+
+        class _Resp:
+            choices = [_Choice()]
+
+        return _Resp()
+
+
+class _OpenAIMockChat:
+    def __init__(self, recorder):
+        self.completions = _OpenAIMockCompletions(recorder)
+
+
+class _OpenAIMockClient:
+    """openai 규약: client.chat.completions.create(...).choices[0].message.content"""
+
+    def __init__(self):
+        self.calls = []
+        self.chat = _OpenAIMockChat(self.calls)
+
+
+# ── L2 LLM 초안 — anthropic provider ──────────────────────────
+class TestL2Anthropic:
     def test_fills_both_empty_bodies(self, patch_notes_table):
         rows = parse_activity(ACTIVITY)
         saved = upsert_rows(rows)
 
-        client = _MockClient()
-        filled = fill_empty_bodies(saved, client=client, model="claude-sonnet-4-6")
+        client = _AnthropicMockClient()
+        filled = fill_empty_bodies(
+            saved, provider="anthropic", client=client, model="claude-sonnet-4-6",
+        )
 
         # 3개 노트 × 2 본문 = 6개 본문이 채워진다 (call 도 6번).
         assert filled == 6
@@ -181,15 +254,15 @@ class TestL2FillEmptyBodies:
     def test_skips_already_filled_bodies(self, patch_notes_table):
         rows = parse_activity(ACTIVITY)
         saved = upsert_rows(rows)
-        # 한 노트의 두 본문을 미리 채워둔다 → 둘 다 건너뛰어야 한다.
         saved[0].user_body = "수작업 user"
         saved[0].dev_body = "수작업 dev"
         saved[0].save()
 
-        client = _MockClient()
-        filled = fill_empty_bodies(saved, client=client, model="claude-sonnet-4-6")
+        client = _AnthropicMockClient()
+        filled = fill_empty_bodies(
+            saved, provider="anthropic", client=client, model="claude-sonnet-4-6",
+        )
 
-        # 남은 2개 노트 × 2 본문 = 4개만 채워진다.
         assert filled == 4
         assert len(client.calls) == 4
 
@@ -198,18 +271,17 @@ class TestL2FillEmptyBodies:
         assert preserved.dev_body == "수작업 dev"
 
     def test_fills_only_the_empty_one_when_one_present(self, patch_notes_table):
-        # 한 본문만 비어 있으면 그것만 채우고 채워진 쪽은 보존한다.
         rows = parse_activity(ACTIVITY)
         saved = upsert_rows(rows)
         note = saved[0]
         note.dev_body = "수작업 dev"   # dev 는 채워짐, user 는 빔
         note.save()
 
-        # 이 노트 하나만 대상으로 호출.
-        client = _MockClient()
-        filled = fill_empty_bodies([note], client=client, model="claude-sonnet-4-6")
+        client = _AnthropicMockClient()
+        filled = fill_empty_bodies(
+            [note], provider="anthropic", client=client, model="claude-sonnet-4-6",
+        )
 
-        # user_body 하나만 채워진다.
         assert filled == 1
         assert len(client.calls) == 1
         # USER 프롬프트만 호출됐어야 한다.
@@ -226,8 +298,10 @@ class TestL2FillEmptyBodies:
             pn.user_body = "있음"
             pn.dev_body = "있음"
             pn.save()
-        client = _MockClient()
-        filled = fill_empty_bodies(saved, client=client, model="claude-sonnet-4-6")
+        client = _AnthropicMockClient()
+        filled = fill_empty_bodies(
+            saved, provider="anthropic", client=client, model="claude-sonnet-4-6",
+        )
         assert filled == 0
         assert client.calls == []
 
@@ -235,11 +309,12 @@ class TestL2FillEmptyBodies:
         # 프롬프트 인젝션 방어: ACTIVITY 텍스트는 user role 로만 전달.
         rows = parse_activity(ACTIVITY)
         saved = upsert_rows(rows)
-        client = _MockClient()
+        client = _AnthropicMockClient()
         for draft in (draft_dev_body, draft_user_body):
             client.calls.clear()
             draft(
-                saved[0], client=client, model="claude-sonnet-4-6", max_input_chars=4000,
+                saved[0], provider="anthropic", client=client,
+                model="claude-sonnet-4-6", max_input_chars=4000,
             )
             call = client.calls[0]
             assert saved[0].title not in call["system"]
@@ -253,8 +328,113 @@ class TestL2FillEmptyBodies:
             title=long_title, user_body="", dev_body="", source="activity",
             created_at="x", updated_at="x",
         )
-        client = _MockClient()
-        draft_dev_body(pn, client=client, model="claude-sonnet-4-6", max_input_chars=100)
+        client = _AnthropicMockClient()
+        draft_dev_body(
+            pn, provider="anthropic", client=client,
+            model="claude-sonnet-4-6", max_input_chars=100,
+        )
         sent = client.calls[0]["messages"][0]["content"]
-        # summary 부분이 캡을 넘지 않아야 한다.
         assert "x" * 101 not in sent
+
+
+# ── L2 LLM 초안 — openai provider ─────────────────────────────
+class TestL2OpenAI:
+    def test_fills_both_empty_bodies(self, patch_notes_table):
+        rows = parse_activity(ACTIVITY)
+        saved = upsert_rows(rows)
+
+        client = _OpenAIMockClient()
+        filled = fill_empty_bodies(
+            saved, provider="openai", client=client, model="gpt-4.1-mini",
+        )
+
+        assert filled == 6
+        assert len(client.calls) == 6
+        # openai 규약대로 model 이 전달됐는지.
+        assert client.calls[0]["model"] == "gpt-4.1-mini"
+
+        for pn in saved:
+            refreshed = PatchNote.get(patch_note_id=pn.patch_note_id)
+            assert refreshed.dev_body == "## DEV 초안"
+            assert refreshed.user_body == "## USER 초안"
+
+    def test_skips_already_filled_bodies(self, patch_notes_table):
+        rows = parse_activity(ACTIVITY)
+        saved = upsert_rows(rows)
+        saved[0].user_body = "수작업 user"
+        saved[0].dev_body = "수작업 dev"
+        saved[0].save()
+
+        client = _OpenAIMockClient()
+        filled = fill_empty_bodies(
+            saved, provider="openai", client=client, model="gpt-4.1-mini",
+        )
+
+        assert filled == 4
+        assert len(client.calls) == 4
+
+        preserved = PatchNote.get(patch_note_id=saved[0].patch_note_id)
+        assert preserved.user_body == "수작업 user"
+        assert preserved.dev_body == "수작업 dev"
+
+    def test_no_network_call_when_all_filled(self, patch_notes_table):
+        rows = parse_activity(ACTIVITY)
+        saved = upsert_rows(rows)
+        for pn in saved:
+            pn.user_body = "있음"
+            pn.dev_body = "있음"
+            pn.save()
+        client = _OpenAIMockClient()
+        filled = fill_empty_bodies(
+            saved, provider="openai", client=client, model="gpt-4.1-mini",
+        )
+        assert filled == 0
+        assert client.calls == []
+
+    def test_external_input_is_user_role_not_system(self, patch_notes_table):
+        # 프롬프트 인젝션 방어 (openai): system 메시지는 고정 지시,
+        # ACTIVITY 텍스트는 user 메시지로만.
+        rows = parse_activity(ACTIVITY)
+        saved = upsert_rows(rows)
+        client = _OpenAIMockClient()
+        for draft in (draft_dev_body, draft_user_body):
+            client.calls.clear()
+            draft(
+                saved[0], provider="openai", client=client,
+                model="gpt-4.1-mini", max_input_chars=4000,
+            )
+            msgs = client.calls[0]["messages"]
+            system_msg = next(m for m in msgs if m["role"] == "system")
+            user_msg = next(m for m in msgs if m["role"] == "user")
+            assert saved[0].title not in system_msg["content"]
+            assert saved[0].title in user_msg["content"]
+
+    def test_input_length_capped(self, patch_notes_table):
+        long_title = "x" * 10000
+        pn = PatchNote(
+            patch_note_id="pn_long", date="2026-06-23", scope="be",
+            title=long_title, user_body="", dev_body="", source="activity",
+            created_at="x", updated_at="x",
+        )
+        client = _OpenAIMockClient()
+        draft_dev_body(
+            pn, provider="openai", client=client,
+            model="gpt-4.1-mini", max_input_chars=100,
+        )
+        user_msg = next(
+            m for m in client.calls[0]["messages"] if m["role"] == "user"
+        )
+        assert "x" * 101 not in user_msg["content"]
+
+
+# ── 잘못된 provider 분기 에러 ──────────────────────────────────
+class TestL2InvalidProvider:
+    def test_draft_rejects_unknown_provider(self, patch_notes_table):
+        rows = parse_activity(ACTIVITY)
+        saved = upsert_rows(rows)
+        with pytest.raises(ValueError) as exc:
+            draft_dev_body(
+                saved[0], provider="gemini", client=object(),
+                model="x", max_input_chars=4000,
+            )
+        assert "gemini" in str(exc.value)

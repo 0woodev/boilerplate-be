@@ -4,6 +4,15 @@ name: Patch Notes Sync
 # 수동 실행(workflow_dispatch)이 기본. ACTIVITY.md 변경 push 시 자동 동기화도 선택 가능.
 on:
   workflow_dispatch:
+    inputs:
+      provider:
+        description: 'L2 LLM provider (anthropic|openai)'
+        required: false
+        default: 'anthropic'
+      model:
+        description: 'L2 모델 ID (미설정 시 provider 기본값)'
+        required: false
+        default: ''
   push:
     branches: [dev, main]
     paths:
@@ -21,7 +30,11 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       PROJECT_NAME: ${{ vars.PROJECT_NAME }}
       STAGE: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
+      # 선택된 provider 의 키만 있으면 동작. 존재하는 secret 만 전달된다.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PATCH_NOTES_PROVIDER: ${{ inputs.provider || 'anthropic' }}
+      PATCH_NOTES_MODEL: ${{ inputs.model || '' }}
 
     steps:
       - uses: actions/checkout@v4
