@@ -37,24 +37,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Restore build cache
+      # 키에 github.sha 박지 않음 — incremental Makefile 이 .build/ 안에서 SHA256 비교로
+      # endpoint 별 재빌드 판단하니, 캐시는 코드/의존성 내용 기반으로 재사용해도 안전.
+      # 같은 키면 cache action 이 save 를 자동 skip → 중복 저장 방지.
+      - name: Cache build artifacts
         uses: actions/cache@v4
         with:
           path: .build/
-          key: build-${{ env.STAGE }}-${{ hashFiles('requirements.txt') }}-${{ github.sha }}
+          key: build-${{ env.STAGE }}-${{ hashFiles('requirements.txt', 'app/**', 'common/**', 'Makefile') }}
           restore-keys: |
-            build-${{ env.STAGE }}-${{ hashFiles('requirements.txt') }}-
             build-${{ env.STAGE }}-
 
       - name: Build (Lambda zips + Layers)
         run: make all
-
-      - name: Save build cache
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: .build/
-          key: build-${{ env.STAGE }}-${{ hashFiles('requirements.txt') }}-${{ github.sha }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -71,7 +66,8 @@ jobs:
       - name: Terraform Apply
         working-directory: terraform
         run: |
-          terraform apply -auto-approve \
+          set -o pipefail
+          terraform apply -auto-approve -input=false \
             -var="stage=${{ env.STAGE }}" \
             -var="project_name=${{ vars.PROJECT_NAME }}" \
             -var="aws_region=${{ vars.AWS_REGION }}" \

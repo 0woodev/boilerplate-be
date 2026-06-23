@@ -6,6 +6,16 @@ from flask import Flask, request
 app = Flask(__name__)
 
 
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization,X-Username"
+    if request.method == "OPTIONS":
+        response.status_code = 204
+    return response
+
+
 def make_event(req, path_params=None):
     """Flask request → API Gateway v2 event 포맷 변환"""
     body = req.get_data(as_text=True)
@@ -74,6 +84,21 @@ def load_handlers():
                 continue
 
             method, path = mod.ROUTE
+
+            # API Gateway $default catch-all → Flask 404 handler
+            if path == "$default":
+                def _fallback_view(_err=None, _h=mod.handler):
+                    event = make_event(request)
+                    result = _h(event, {})
+                    return app.response_class(
+                        response=result.get("body", ""),
+                        status=result.get("statusCode", 404),
+                        mimetype=result.get("headers", {}).get("Content-Type", "application/json"),
+                    )
+                app.register_error_handler(404, _fallback_view)
+                print(f"  ✅ 404    {path}  →  {handler_path}")
+                continue
+
             # API GW path param {id} → Flask <id>
             flask_path = path.replace("{", "<").replace("}", ">")
 

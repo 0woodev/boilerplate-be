@@ -39,13 +39,14 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Restore build cache
-        uses: actions/cache@v4
+      # Plan 은 restore 만. Save 는 apply.yml 에서만 — PR 빌드가 dev/main 캐시를
+      # 오염시키지 않도록.
+      - name: Restore build cache (read-only)
+        uses: actions/cache/restore@v4
         with:
           path: .build/
-          key: build-${{ env.STAGE }}-${{ hashFiles('requirements.txt') }}-${{ github.sha }}
+          key: build-${{ env.STAGE }}-${{ hashFiles('requirements.txt', 'app/**', 'common/**', 'Makefile') }}
           restore-keys: |
-            build-${{ env.STAGE }}-${{ hashFiles('requirements.txt') }}-
             build-${{ env.STAGE }}-
 
       - name: Build (Lambda zips + Layers)
@@ -66,8 +67,11 @@ jobs:
       - name: Terraform Plan
         id: plan
         working-directory: terraform
+        # pipefail 없으면 tee의 exit code(0)가 가려서 terraform 실패 감지 못 함
+        shell: bash
         run: |
-          terraform plan \
+          set -o pipefail
+          terraform plan -input=false \
             -var="stage=${{ env.STAGE }}" \
             -var="project_name=${{ vars.PROJECT_NAME }}" \
             -var="aws_region=${{ vars.AWS_REGION }}" \

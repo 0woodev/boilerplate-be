@@ -30,6 +30,19 @@ make api name=api_post_order domain=order
 
 ---
 
+## ⚠️ DB 변경 시 필수 확인
+
+DynamoDB 테이블/스키마를 건드리는 모든 PR은 **반드시** [`docs/db-operations.md`](./docs/db-operations.md) 의 절차를 따른다:
+
+1. **변경 유형 분류** — 안전 / 주의 / 위험
+2. **PR description에 4-항목 체크리스트** (영향 분석, 마이그레이션 전략, 롤백 계획)
+3. **위험 변경**(테이블 폐기/병합/키 변경)은 **PR 한 개로 못 끝남**
+4. **prevent_destroy 우회 케이스 주의** — module 통째 제거 시 lifecycle 안 막힘. `deletion_protection_enabled`가 진짜 안전핀
+
+→ 한 줄 요약: 데이터 손실 가능한 작업은 `docs/db-operations.md` 펼치고 시작한다.
+
+---
+
 ## 진행 현황
 
 boilerplate-be 설계 과정에서 결정하고 구현한 내용의 체크리스트.

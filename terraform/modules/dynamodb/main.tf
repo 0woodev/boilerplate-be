@@ -58,6 +58,9 @@ resource "aws_dynamodb_table" "this" {
     enabled = each.value.point_in_time_recovery
   }
 
+  # AWS-level 삭제 차단 (prevent_destroy보다 강한 안전망)
+  deletion_protection_enabled = each.value.deletion_protection_enabled
+
   # 암호화
   dynamic "server_side_encryption" {
     for_each = each.value.server_side_encryption ? [1] : []

@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 from enum import Enum
 from typing import Any
 
@@ -48,7 +49,8 @@ class DynamoClient:
     @classmethod
     def _table(cls, table_name: str):
         if cls._resource is None:
-            cls._resource = boto3.resource("dynamodb")
+            endpoint_url = os.environ.get("AWS_ENDPOINT_URL")
+            cls._resource = boto3.resource("dynamodb", endpoint_url=endpoint_url)
         return cls._resource.Table(table_name)
 
     # ── CRUD ──────────────────────────────────────────────────

@@ -89,7 +89,8 @@ resource "aws_iam_role_policy" "github_actions" {
           "lambda:CreateAlias", "lambda:UpdateAlias", "lambda:DeleteAlias",
           "lambda:GetAlias", "lambda:ListAliases",
           "lambda:PublishVersion", "lambda:ListVersionsByFunction",
-          "lambda:TagResource", "lambda:UntagResource", "lambda:ListTags"
+          "lambda:TagResource", "lambda:UntagResource", "lambda:ListTags",
+          "lambda:GetFunctionCodeSigningConfig"
         ]
         Resource = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-${each.key}-*"
       },
@@ -106,8 +107,11 @@ resource "aws_iam_role_policy" "github_actions" {
       },
       # ── API Gateway (region-scoped, ID가 런타임에 결정되어 project 기반 ARN 제한 불가) ──
       {
-        Effect   = "Allow"
-        Action   = ["apigateway:GET", "apigateway:POST", "apigateway:PUT", "apigateway:PATCH", "apigateway:DELETE"]
+        Effect = "Allow"
+        Action = [
+          "apigateway:GET", "apigateway:POST", "apigateway:PUT", "apigateway:PATCH", "apigateway:DELETE",
+          "apigateway:TagResource", "apigateway:UntagResource"
+        ]
         Resource = "arn:aws:apigateway:${var.aws_region}::/*"
       },
       # ── DynamoDB App Tables (stage-scoped) ────────────────────
@@ -140,7 +144,9 @@ resource "aws_iam_role_policy" "github_actions" {
           "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:UpdateRole",
           "iam:TagRole", "iam:UntagRole", "iam:ListRoleTags",
           "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy", "iam:ListRolePolicies",
-          "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListAttachedRolePolicies"
+          "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListAttachedRolePolicies",
+          # Role 삭제 전 연결된 instance profile 확인 (terraform destroy 체크)
+          "iam:ListInstanceProfilesForRole"
         ]
         Resource = "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-${each.key}-*"
       },
@@ -199,8 +205,11 @@ resource "aws_iam_role_policy" "github_actions" {
       },
       # ── ACM (read-only: Terraform data source로만 사용) ───────
       {
-        Effect   = "Allow"
-        Action   = ["acm:DescribeCertificate", "acm:ListCertificates"]
+        Effect = "Allow"
+        Action = [
+          "acm:DescribeCertificate", "acm:ListCertificates", "acm:GetCertificate",
+          "acm:ListTagsForCertificate",
+        ]
         Resource = "*"
       },
       # ── Route53 ───────────────────────────────────────────────
