@@ -2,3 +2,9 @@
 
 pytest
 moto[dynamodb]
+
+# L2 patch-notes 초안 생성용 (scripts/generate_patch_notes.py --llm).
+# 제공자 플러그형 — PATCH_NOTES_PROVIDER 로 선택. CI/dev 전용 —
+# Lambda 런타임(requirements.txt)에는 넣지 않는다.
+anthropic
+openai
