@@ -8,7 +8,7 @@ on:
       provider:
         description: 'L2 LLM provider (anthropic|openai)'
         required: false
-        default: 'anthropic'
+        default: 'openai'
       model:
         description: 'L2 모델 ID (미설정 시 provider 기본값)'
         required: false
@@ -33,7 +33,7 @@ jobs:
       # 선택된 provider 의 키만 있으면 동작. 존재하는 secret 만 전달된다.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      PATCH_NOTES_PROVIDER: ${{ inputs.provider || 'anthropic' }}
+      PATCH_NOTES_PROVIDER: ${{ inputs.provider || 'openai' }}
       PATCH_NOTES_MODEL: ${{ inputs.model || '' }}
 
     steps:
