@@ -24,7 +24,7 @@ variable "github_owner" {
 }
 
 variable "fe_domain" {
-  description = "프론트엔드 도메인 (CORS 허용 origin). ex) https://my-app.com"
+  description = "프론트엔드 풀 URL (CORS 허용 origin). 스킴(https://) 포함. ex) https://my-app.com"
   type        = string
 }
 

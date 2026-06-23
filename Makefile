@@ -7,9 +7,12 @@ PIP      := $(VENV)/bin/pip
 STAGE       ?= dev
 CONFIG_FILE ?= ../$(STAGE).env
 
+PROJECT_NAME ?= my-project
+
 .PHONY: all zip-src-all zip-layer-all zip-common-src-all diff-all \
         clean-all clean-src clean-layer clean-common \
-        setup setup-dev local api test \
+        setup setup-dev local api test e2e \
+        local-db local-db-init local-db-stop local-db-sync \
         tf-global tf-init tf-plan tf-apply \
         gh-setup
 
@@ -59,11 +62,54 @@ setup-dev: setup
 	@$(PIP) install -r requirements-dev.txt -q
 	@echo "✅ dev deps installed"
 
+# STAGE=local → DynamoDB Local (Docker, port 8000)
+# STAGE=dev   → 실제 AWS DynamoDB (dev 환경)
 local:
-	FLASK_DEBUG=1 $(PYTHON) local_server.py
+	@if [ "$(STAGE)" = "local" ]; then \
+		echo "🐳 Using DynamoDB Local (http://localhost:8000)"; \
+		PROJECT_NAME=$(PROJECT_NAME) STAGE=local AWS_DEFAULT_REGION=ap-northeast-2 \
+		AWS_ENDPOINT_URL=http://localhost:8000 \
+		AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local \
+		FLASK_DEBUG=1 $(PYTHON) local_server.py; \
+	else \
+		echo "☁️  Using AWS DynamoDB ($(STAGE))"; \
+		PROJECT_NAME=$(PROJECT_NAME) STAGE=$(STAGE) \
+		FLASK_DEBUG=1 $(PYTHON) local_server.py; \
+	fi
+
+# DynamoDB Local 테이블 생성 (docker 실행 후 1회)
+local-db:
+	@mkdir -p $(PROJECT_ROOT)/.dynamodb-data
+	docker run -d --name dynamodb-local \
+		-p 8000:8000 \
+		-v $(PROJECT_ROOT)/.dynamodb-data:/home/dynamodblocal/data \
+		amazon/dynamodb-local \
+		-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data \
+		2>/dev/null || docker start dynamodb-local
+	@echo "🐳 DynamoDB Local running on http://localhost:8000"
+	@echo "   💾 데이터 저장: $(PROJECT_ROOT)/.dynamodb-data/"
+
+local-db-init:
+	@$(PYTHON) scripts/create_local_tables.py
+
+local-db-stop:
+	docker stop dynamodb-local
+
+# DB 동기화 (데이터 복사)
+# Usage: make local-db-sync                    # dev → local (기본)
+#        make local-db-sync FROM=prod          # prod → local
+#        make local-db-sync FROM=prod TO=dev   # prod → dev (확인 프롬프트)
+FROM ?= dev
+TO   ?= local
+local-db-sync:
+	@$(PYTHON) scripts/sync_to_local.py --from $(FROM) --to $(TO)
 
 test:
-	@$(VENV)/bin/pytest tests/
+	@$(VENV)/bin/pytest tests/ --ignore=tests/e2e
+
+# E2E 테스트: make e2e STAGE=local | dev
+e2e:
+	@E2E_STAGE=$(STAGE) $(VENV)/bin/pytest tests/e2e/ -v
 
 # make api name=api_post_create_order [domain=order]
 api:
