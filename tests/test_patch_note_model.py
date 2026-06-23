@@ -24,7 +24,8 @@ class TestPatchNoteCrud:
             date="2026-06-23",
             scope="be",
             title="Add patch notes",
-            body="## Body",
+            user_body="## User",
+            dev_body="## Dev",
             source="manual",
             created_at="2026-06-23T10:00:00+00:00",
             updated_at="2026-06-23T10:00:00+00:00",
@@ -34,7 +35,8 @@ class TestPatchNoteCrud:
         assert got is not None
         assert got.title == "Add patch notes"
         assert got.scope == "be"
-        assert got.body == "## Body"
+        assert got.user_body == "## User"
+        assert got.dev_body == "## Dev"
         assert got.source == "manual"
 
     def test_roundtrip_excludes_internal_keys(self, patch_notes_table):

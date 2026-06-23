@@ -14,7 +14,8 @@ class PatchNote(DynamoModel):
     date:          str = ""              # "YYYY-MM-DD"
     scope:         str = ""              # be | fe | infra | root | docs
     title:         str = ""
-    body:          str = ""              # Markdown, "" 가능
+    user_body:     str = ""              # Markdown, 사용자 친화 본문, "" 가능
+    dev_body:      str = ""              # Markdown, 기술 본문, "" 가능
     source:        str = "manual"        # activity | manual
     created_at:    str = ""
     updated_at:    str = ""

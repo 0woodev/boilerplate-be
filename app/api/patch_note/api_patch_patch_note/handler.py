@@ -22,8 +22,10 @@ def handler(event, context):
 
     if "title" in body:
         pn.title = body["title"]
-    if "body" in body:
-        pn.body = body["body"]
+    if "user_body" in body:
+        pn.user_body = body["user_body"]
+    if "dev_body" in body:
+        pn.dev_body = body["dev_body"]
     pn.updated_at = datetime.now(UTC).isoformat()
 
     # updated_at 이 GSI SK 에 포함되므로 전체 항목을 재저장해 GSI 컬럼까지 갱신.

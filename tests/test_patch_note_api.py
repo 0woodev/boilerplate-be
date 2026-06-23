@@ -64,7 +64,8 @@ class TestGetPatchNotes:
 class TestPostPatchNote:
     def test_create_manual(self, patch_notes_table):
         resp = post_patch_note(
-            _event(body={"date": "2026-06-23", "scope": "be", "title": "T", "body": "B"}),
+            _event(body={"date": "2026-06-23", "scope": "be", "title": "T",
+                         "user_body": "U", "dev_body": "D"}),
             None,
         )
         assert resp["statusCode"] == 201
@@ -72,18 +73,23 @@ class TestPostPatchNote:
         assert data["source"] == "manual"
         assert data["patch_note_id"].startswith("pn_")
         assert data["created_at"] and data["updated_at"]
+        assert data["user_body"] == "U"
+        assert data["dev_body"] == "D"
 
         stored = PatchNote.get(patch_note_id=data["patch_note_id"])
         assert stored.title == "T"
-        assert stored.body == "B"
+        assert stored.user_body == "U"
+        assert stored.dev_body == "D"
 
-    def test_body_optional(self, patch_notes_table):
+    def test_bodies_optional(self, patch_notes_table):
         resp = post_patch_note(
             _event(body={"date": "2026-06-23", "scope": "fe", "title": "T"}),
             None,
         )
         assert resp["statusCode"] == 201
-        assert _body(resp)["body"] == ""
+        data = _body(resp)
+        assert data["user_body"] == ""
+        assert data["dev_body"] == ""
 
     def test_requires_auth(self, patch_notes_table):
         resp = post_patch_note(
@@ -102,26 +108,30 @@ class TestPatchPatchNote:
     def _seed(self):
         PatchNote(
             patch_note_id="pn_1", date="2026-06-23", scope="be",
-            title="old title", body="old body", source="manual",
+            title="old title", user_body="old user", dev_body="old dev",
+            source="manual",
             created_at="2026-06-23T10:00:00+00:00",
             updated_at="2026-06-23T10:00:00+00:00",
         ).save()
 
-    def test_edit_title_and_body(self, patch_notes_table):
+    def test_edit_title_and_bodies(self, patch_notes_table):
         self._seed()
         resp = patch_patch_note(
-            _event(body={"title": "new title", "body": "new body"},
+            _event(body={"title": "new title", "user_body": "new user",
+                         "dev_body": "new dev"},
                    path_params={"patch_note_id": "pn_1"}),
             None,
         )
         assert resp["statusCode"] == 200
         data = _body(resp)
         assert data["title"] == "new title"
-        assert data["body"] == "new body"
+        assert data["user_body"] == "new user"
+        assert data["dev_body"] == "new dev"
 
         stored = PatchNote.get(patch_note_id="pn_1")
         assert stored.title == "new title"
-        assert stored.body == "new body"
+        assert stored.user_body == "new user"
+        assert stored.dev_body == "new dev"
 
     def test_partial_edit_title_only(self, patch_notes_table):
         self._seed()
@@ -131,7 +141,35 @@ class TestPatchPatchNote:
             None,
         )
         assert resp["statusCode"] == 200
-        assert _body(resp)["body"] == "old body"
+        data = _body(resp)
+        assert data["user_body"] == "old user"
+        assert data["dev_body"] == "old dev"
+
+    def test_partial_edit_user_body_only(self, patch_notes_table):
+        self._seed()
+        resp = patch_patch_note(
+            _event(body={"user_body": "only user"},
+                   path_params={"patch_note_id": "pn_1"}),
+            None,
+        )
+        assert resp["statusCode"] == 200
+        data = _body(resp)
+        assert data["title"] == "old title"
+        assert data["user_body"] == "only user"
+        assert data["dev_body"] == "old dev"
+
+    def test_partial_edit_dev_body_only(self, patch_notes_table):
+        self._seed()
+        resp = patch_patch_note(
+            _event(body={"dev_body": "only dev"},
+                   path_params={"patch_note_id": "pn_1"}),
+            None,
+        )
+        assert resp["statusCode"] == 200
+        data = _body(resp)
+        assert data["title"] == "old title"
+        assert data["user_body"] == "old user"
+        assert data["dev_body"] == "only dev"
 
     def test_not_found_404(self, patch_notes_table):
         resp = patch_patch_note(
