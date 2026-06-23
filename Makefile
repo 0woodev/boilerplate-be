@@ -14,7 +14,7 @@ PROJECT_NAME ?= my-project
         setup setup-dev local api test e2e \
         local-db local-db-init local-db-stop local-db-sync \
         tf-global tf-init tf-plan tf-apply \
-        gh-setup
+        gh-setup patch-notes-sync
 
 # ──────────────────────────────────────────────────────────────
 # 빌드
@@ -126,6 +126,14 @@ api:
 	else \
 		echo "⚠️  Already exists: $$path/handler.py (skipped)"; \
 	fi
+
+# ──────────────────────────────────────────────────────────────
+# Patch Notes (ACTIVITY.md → PatchNote 멱등 동기화, L1 only — LLM 초안 없음)
+# make patch-notes-sync STAGE=dev
+# ──────────────────────────────────────────────────────────────
+patch-notes-sync:
+	@PROJECT_NAME=$(PROJECT_NAME) STAGE=$(STAGE) \
+		$(PYTHON) scripts/generate_patch_notes.py
 
 # ──────────────────────────────────────────────────────────────
 # Terraform (로컬 실행 전용)

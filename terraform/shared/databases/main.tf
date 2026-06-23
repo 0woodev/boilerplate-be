@@ -100,3 +100,31 @@ module "member_tables" {
   tables       = local.member_tables
   tags         = var.tags
 }
+
+# ── PatchNote 도메인 ───────────────────────────────────────────
+# common/models/patch_note.py :: PatchNote
+locals {
+  patch_note_tables = {
+    patch-notes = {
+      hash_key               = "PK"
+      range_key              = "SK"
+      point_in_time_recovery = true
+
+      gsi = [
+        {
+          name      = "ByDate"
+          hash_key  = "ByDatePK"
+          range_key = "ByDateSK"
+        },
+      ]
+    }
+  }
+}
+
+module "patch_note_tables" {
+  source       = "../../modules/dynamodb"
+  project_name = var.project_name
+  stage        = var.stage
+  tables       = local.patch_note_tables
+  tags         = var.tags
+}

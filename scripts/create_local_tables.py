@@ -44,6 +44,13 @@ TABLES = {
             {"name": "ByRole", "hash_key": "ByRolePK", "range_key": "ByRoleSK"},
         ],
     },
+    "patch-notes": {
+        "hash_key": "PK",
+        "range_key": "SK",
+        "gsi": [
+            {"name": "ByDate", "hash_key": "ByDatePK", "range_key": "ByDateSK"},
+        ],
+    },
 }
 
 
