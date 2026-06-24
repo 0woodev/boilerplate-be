@@ -51,7 +51,11 @@ resource "aws_iam_role" "github_actions" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_owner}/${var.project_name}-be:*"
+          # be(배포) + app(오케스트레이터: patch-notes 동기화 등) 워크플로가 이 롤을 assume
+          "token.actions.githubusercontent.com:sub" = [
+            "repo:${var.github_owner}/${var.project_name}-be:*",
+            "repo:${var.github_owner}/${var.project_name}-app:*",
+          ]
         }
       }
     }]
